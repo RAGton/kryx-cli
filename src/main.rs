@@ -116,7 +116,7 @@ fn main() {
                 exit(1);
             }
         }
-        Commands::Doctor => match services::diagnostics::run_doctor() {
+        Commands::Doctor { json } => match services::diagnostics::run_doctor(json) {
             Ok(_) => {}
             Err(e) => {
                 eprintln!("Erro: {}", e);

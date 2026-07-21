@@ -36,8 +36,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: SystemSubcommand,
     },
-    /// Diagnóstico do ambiente e configurações
-    Doctor,
+    /// Diagnóstico contextual do host atual
+    Doctor {
+        /// Emite o relatório em JSON para automações e agentes
+        #[arg(long)]
+        json: bool,
+    },
     /// Validação e exibição da identidade do host
     Identity {
         #[arg(long)]
