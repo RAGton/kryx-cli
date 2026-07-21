@@ -24,7 +24,10 @@ pub fn list_features(json: bool) -> Result<(), String> {
         serde_json::from_str(&content).map_err(|e| format!("JSON de features inválido: {}", e))?;
 
     if json {
-        println!("{}", serde_json::to_string(&doc).unwrap_or_else(|_| "{}".to_string()));
+        println!(
+            "{}",
+            serde_json::to_string(&doc).unwrap_or_else(|_| "{}".to_string())
+        );
         return Ok(());
     }
 

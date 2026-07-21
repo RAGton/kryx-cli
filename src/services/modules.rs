@@ -5,7 +5,7 @@ use colored::Colorize;
 use std::fs;
 use std::process::{Command, Stdio};
 
-pub fn run_switch() -> Result<(), String> {
+pub fn run_switch(target: Option<String>) -> Result<(), String> {
     println!(
         "{} Iniciando operação atômica de switch...",
         "[INFO]".cyan()
@@ -27,12 +27,18 @@ pub fn run_switch() -> Result<(), String> {
     }
 
     // 2. Identify the target hostname
-    let hostname = fs::read_to_string("/etc/hostname")
-        .unwrap_or_else(|_| "default".to_string())
-        .trim()
-        .to_string();
+    let hostname = target.unwrap_or_else(|| {
+        fs::read_to_string("/etc/hostname")
+            .unwrap_or_else(|_| "default".to_string())
+            .trim()
+            .to_string()
+    });
 
-    println!("{} Flake target: .#{}", "[INFO]".cyan(), hostname);
+    println!(
+        "{} Flake target: /etc/kryonixos#{}",
+        "[INFO]".cyan(),
+        hostname
+    );
 
     // 3. Run nixos-rebuild switch
     println!("{} Executando nixos-rebuild switch...", "[INFO]".cyan());
@@ -40,7 +46,7 @@ pub fn run_switch() -> Result<(), String> {
     let status = Command::new("nixos-rebuild")
         .arg("switch")
         .arg("--flake")
-        .arg(&format!(".#{}", hostname))
+        .arg(&format!("/etc/kryonixos#{}", hostname))
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()

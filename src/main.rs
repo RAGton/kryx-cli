@@ -59,7 +59,7 @@ fn main() {
     let is_critical = match &cli.command {
         Commands::Deploy { .. } | Commands::FactoryReset { .. } => true,
         Commands::Node {
-            command: cli::NodeSubcommand::Publish { .. },
+            command: cli::NodeSubcommand::Publish,
         } => true,
         _ => false,
     };
@@ -72,8 +72,20 @@ fn main() {
     }
 
     match cli.command {
-        Commands::Switch => {
-            if let Err(e) = services::modules::run_switch() {
+        Commands::Switch { target } => {
+            if let Err(e) = services::modules::run_switch(target) {
+                eprintln!("Erro Crítico: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Update => {
+            if let Err(e) = services::update::run_update() {
+                eprintln!("Erro Crítico: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Status => {
+            if let Err(e) = services::status::run_status() {
                 eprintln!("Erro Crítico: {}", e);
                 exit(1);
             }
@@ -114,7 +126,10 @@ fn main() {
         Commands::Identity { json } => match services::identity::check_identity() {
             Ok(identity) => {
                 if json {
-                    println!("{}", serde_json::to_string(&identity).unwrap_or_else(|_| "{}".to_string()));
+                    println!(
+                        "{}",
+                        serde_json::to_string(&identity).unwrap_or_else(|_| "{}".to_string())
+                    );
                 } else {
                     println!("Host Identity Guard: Ativo");
                     println!("UUID: {}", identity.uuid);
@@ -150,12 +165,12 @@ fn main() {
         }
         Commands::Node { command } => {
             let action = match command {
-                cli::NodeSubcommand::Publish { channel } => {
-                    services::node::NodeAction::Publish { channel }
+                cli::NodeSubcommand::List => services::node::NodeAction::List,
+                cli::NodeSubcommand::Publish => services::node::NodeAction::Publish,
+                cli::NodeSubcommand::Reload => services::node::NodeAction::Reload,
+                cli::NodeSubcommand::Reboot { mac_or_ip } => {
+                    services::node::NodeAction::Reboot { target: mac_or_ip }
                 }
-                cli::NodeSubcommand::Rollback => services::node::NodeAction::Rollback,
-                cli::NodeSubcommand::Status => services::node::NodeAction::Status,
-                cli::NodeSubcommand::Gc => services::node::NodeAction::Gc,
             };
             if let Err(e) = services::node::run_node_command(action) {
                 eprintln!("Erro Crítico: {}", e);

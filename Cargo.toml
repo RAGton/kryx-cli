@@ -14,3 +14,5 @@ tokio = { version = "1.0", features = ["process", "rt", "macros"] }
 
 [dev-dependencies]
 
+[workspace]
+

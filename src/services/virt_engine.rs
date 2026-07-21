@@ -1,6 +1,6 @@
-use tokio::process::Command;
-use serde_json::Value;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tokio::process::Command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InstanceConfig {
@@ -46,7 +46,8 @@ pub async fn incus_launch(config: &InstanceConfig) -> Result<(), String> {
     }
 
     cmd.arg("-c").arg(format!("limits.cpu={}", config.cpu));
-    cmd.arg("-c").arg(format!("limits.memory={}MB", config.ram_mb));
+    cmd.arg("-c")
+        .arg(format!("limits.memory={}MB", config.ram_mb));
     cmd.arg("-d").arg(format!("root,size={}GB", config.disk_gb));
 
     let output = cmd

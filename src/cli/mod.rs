@@ -10,7 +10,10 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Operação atômica de reconstrução e transição do sistema
-    Switch,
+    Switch {
+        /// Hostname alvo opcional
+        target: Option<String>,
+    },
     /// Gerencia deploy de imagens diskless (NODE)
     Deploy {
         /// Caminho para a configuração gerada do instalador
@@ -54,21 +57,22 @@ pub enum Commands {
         #[command(subcommand)]
         command: FeatureSubcommand,
     },
+    /// Atualiza repositórios Git (/etc/kryonix) e locks de flake
+    Update,
+    /// Inspeção de saúde (ZFS, KVE/Incus, Serviços, Telemetria)
+    Status,
 }
 
 #[derive(Subcommand)]
 pub enum NodeSubcommand {
-    /// Publica uma nova geração de imagem para os nodos (NODE)
-    Publish {
-        #[arg(long)]
-        channel: Option<String>,
-    },
-    /// Reverte os nodos para a geração anterior
-    Rollback,
-    /// Exibe o status atual dos nodos conectados
-    Status,
-    /// Limpa imagens e gerações antigas não utilizadas
-    Gc,
+    /// Lista clientes PXE ativos (IP/MAC/Status)
+    List,
+    /// Compila e publica nova imagem de cliente no repositório HTTP/PXE
+    Publish,
+    /// Reinicia serviços de boot por rede (TFTP/iPXE/HTTP)
+    Reload,
+    /// Reinício remoto de estações diskless
+    Reboot { mac_or_ip: Option<String> },
 }
 
 #[derive(Subcommand, Debug)]
