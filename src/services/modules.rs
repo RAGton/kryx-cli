@@ -8,6 +8,22 @@ use std::process::{Command, Stdio};
 /// when it runs `nix --version`. We scan `/nix/store` for ELF binaries
 /// named `nix` (file size > 1MB is a good heuristic — the wrappers are
 /// ~400 bytes).
+/// Resolve the numeric UID of a username by parsing /etc/passwd.
+/// Used to construct HOME_<uid> env var that sudo expects.
+fn uid_of(user: &str) -> u32 {
+    if let Ok(content) = std::fs::read_to_string("/etc/passwd") {
+        for line in content.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 3 && parts[0] == user {
+                if let Ok(uid) = parts[2].parse::<u32>() {
+                    return uid;
+                }
+            }
+        }
+    }
+    1000 // fallback
+}
+
 fn discover_real_nix_dir() -> Option<String> {
     let entries = std::fs::read_dir("/nix/store").ok()?;
     let mut best: Option<(String, std::time::SystemTime)> = None;
@@ -118,7 +134,8 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         argv.push("sudo".to_string());
         argv.push("-u".to_string());
         argv.push(user.to_string());
-        argv.push("-E".to_string()); // preserve env (PATH, HOME)
+        argv.push("-E".to_string()); // preserve env (PATH, etc.)
+        argv.push("--".to_string());
     }
     argv.push(nh_path.to_string());
     argv.push("os".to_string());
@@ -127,11 +144,22 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
 
     let program = argv.remove(0);
 
-    let status = Command::new(&program)
-        .args(&argv)
+    // Resolve the home dir for the target user. When invoked via sudo,
+    // $HOME may still be /root; nh (and libgit2) need the real user's home.
+    let home_dir = sudo_user
+        .as_deref()
+        .and_then(|u| std::env::var(format!("HOME_{}", uid_of(u))).ok())
+        .or_else(|| std::env::var("HOME").ok())
+        .unwrap_or_else(|| "/home/rocha".to_string());
+
+    let mut cmd = Command::new(&program);
+    cmd.args(&argv)
         .env("PATH", patched_path)
+        .env("HOME", home_dir)
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    let status = cmd
         .status()
         .map_err(|e| format!("Falha ao invocar '{}': {}", program, e))?;
 
