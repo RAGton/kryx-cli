@@ -72,14 +72,14 @@ fn main() {
     }
 
     match cli.command {
-        Commands::Switch { target } => {
-            if let Err(e) = services::modules::run_switch(target) {
+        Commands::Switch { target, bypass_lock } => {
+            if let Err(e) = services::modules::run_switch(target, bypass_lock) {
                 eprintln!("Erro Crítico: {}", e);
                 exit(1);
             }
         }
-        Commands::Update => {
-            if let Err(e) = services::update::run_update() {
+        Commands::Update { force_sync } => {
+            if let Err(e) = services::update::run_update(force_sync) {
                 eprintln!("Erro Crítico: {}", e);
                 exit(1);
             }

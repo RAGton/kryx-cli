@@ -13,6 +13,9 @@ pub enum Commands {
     Switch {
         /// Hostname alvo opcional
         target: Option<String>,
+        /// Ignora verificação de árvore git suja (break-glass para emergências)
+        #[arg(long)]
+        bypass_lock: bool,
     },
     /// Gerencia deploy de imagens diskless (NODE)
     Deploy {
@@ -62,7 +65,11 @@ pub enum Commands {
         command: FeatureSubcommand,
     },
     /// Atualiza repositórios Git (/etc/kryonix) e locks de flake
-    Update,
+    Update {
+        /// Faz stash de alterações locais antes do pull (usar com cautela)
+        #[arg(long)]
+        force_sync: bool,
+    },
     /// Inspeção de saúde (ZFS, KVE/Incus, Serviços, Telemetria)
     Status,
 }
