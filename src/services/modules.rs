@@ -106,15 +106,34 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     let current_path = std::env::var("PATH").unwrap_or_default();
     let patched_path = format!("{}:{}", real_nix_dir, current_path);
 
-    let status = Command::new(nh_path)
-        .arg("os")
-        .arg("switch")
-        .arg(&format!("/etc/kryonixos#{}", hostname))
+    // nh 4.x refuses to run as root — it escalates privileges internally.
+    // Detect the original user (when invoked via sudo) and run nh via
+    // `sudo -u <user>` so it can prompt for elevation as needed.
+    let sudo_user = std::env::var("SUDO_USER").ok();
+
+    // Build the argv. We invoke nh either directly (root context, no SUDO_USER)
+    // or via sudo -u (preserving the original user).
+    let mut argv: Vec<String> = Vec::new();
+    if let Some(user) = sudo_user.as_deref() {
+        argv.push("sudo".to_string());
+        argv.push("-u".to_string());
+        argv.push(user.to_string());
+        argv.push("-E".to_string()); // preserve env (PATH, HOME)
+    }
+    argv.push(nh_path.to_string());
+    argv.push("os".to_string());
+    argv.push("switch".to_string());
+    argv.push(format!("/etc/kryonixos#{}", hostname));
+
+    let program = argv.remove(0);
+
+    let status = Command::new(&program)
+        .args(&argv)
         .env("PATH", patched_path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .map_err(|e| format!("Falha ao invocar '{}': {}", nh_path, e))?;
+        .map_err(|e| format!("Falha ao invocar '{}': {}", program, e))?;
 
     if status.success() {
         println!(
