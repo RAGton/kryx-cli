@@ -189,5 +189,53 @@ fn main() {
                 }
             }
         },
+        Commands::Shell { args } => {
+            if let Err(e) = services::passthrough::shell(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Search { args } => {
+            if let Err(e) = services::passthrough::search(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Clean { args } => {
+            if let Err(e) = services::passthrough::clean(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Build { args } => {
+            if let Err(e) = services::passthrough::build(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Run { args } => {
+            if let Err(e) = services::passthrough::run(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Develop { args } => {
+            if let Err(e) = services::passthrough::develop(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Repl { args } => {
+            if let Err(e) = services::passthrough::repl(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Fmt { args } => {
+            if let Err(e) = services::passthrough::fmt(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
     }
 }

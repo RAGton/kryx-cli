@@ -69,6 +69,30 @@ pub enum Commands {
     },
     /// Inspeção de saúde (ZFS, KVE/Incus, Serviços, Telemetria)
     Status,
+    /// Repassa argumentos para `nix shell` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Shell { args: Vec<String> },
+    /// Repassa argumentos para `nh search` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Search { args: Vec<String> },
+    /// Repassa argumentos para `nh clean` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Clean { args: Vec<String> },
+    /// Repassa argumentos para `nix build` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Build { args: Vec<String> },
+    /// Repassa argumentos para `nix run` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Run { args: Vec<String> },
+    /// Repassa argumentos para `nix develop` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Develop { args: Vec<String> },
+    /// Repassa argumentos para `nix repl` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Repl { args: Vec<String> },
+    /// Repassa argumentos para `nix fmt` (wrapper transparente)
+    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    Fmt { args: Vec<String> },
 }
 
 #[derive(Subcommand)]

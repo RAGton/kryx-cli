@@ -6,6 +6,7 @@ pub mod feature;
 pub mod identity;
 pub mod modules;
 pub mod node;
+pub mod passthrough;
 pub mod status;
 pub mod telemetry;
 pub mod theme;
