@@ -156,6 +156,15 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     cmd.args(&argv)
         .env("PATH", patched_path)
         .env("HOME", home_dir)
+        // Bloqueia leitura de configs globais do git em paths inacessíveis
+        // (e.g. /root/.gitconfig quando o kryx roda como root via sudo).
+        // Garante que nh/libgit2 não falhe com "failed to stat /root/.gitconfig".
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        // Impede que git leia config do filesystem sem .gitconfig explicit.
+        // (Em alguns sistemas, GIT_CONFIG_NOSYSTEM é redundante com o acima,
+        // mas garante defesa em profundidade.)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 

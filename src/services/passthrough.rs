@@ -16,6 +16,12 @@ const NH_PATH: &str = "/run/current-system/sw/bin/nh";
 pub fn run_passthrough(binary_path: &str, args: &[String], subcommand_label: &str) -> Result<(), String> {
     let status = Command::new(binary_path)
         .args(args)
+        // Bloqueia leitura de configs globais do git em paths inacessíveis
+        // (e.g. /root/.gitconfig quando o kryx roda como root via sudo).
+        // Necessário porque subprocessos nativos do nix (nh, nix) usam libgit2
+        // que tenta ler configs do HOME, que pode ser /root (inacessível).
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()

@@ -84,10 +84,14 @@ pub fn run_update(force_sync: bool) -> Result<(), String> {
         "{} Atualizando locks de flake em /etc/kryonixos...",
         "[INFO]".cyan()
     );
-    let status_flake = Command::new("nix")
+    let mut nix_cmd = Command::new("nix");
+    nix_cmd
         .args(["flake", "update", "--flake", "/etc/kryonixos"])
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    let status_flake = nix_cmd
         .status()
         .map_err(|e| format!("Falha ao invocar nix flake update: {}", e))?;
 
