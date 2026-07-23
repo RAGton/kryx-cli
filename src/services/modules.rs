@@ -1,33 +1,30 @@
 use colored::Colorize;
 use std::process::{Command, Stdio};
 
-pub fn run_switch(target: Option<String>, bypass_lock: bool) -> Result<(), String> {
+pub fn run_switch(target: Option<String>) -> Result<(), String> {
     println!(
         "{} Iniciando operação atômica de switch...",
         "[INFO]".cyan()
     );
 
-    // 1. Validate if the git tree is clean (skip only if bypass_lock)
-    if !bypass_lock {
-        let git_status = Command::new("git")
-            .arg("status")
-            .arg("--porcelain")
-            .output()
-            .map_err(|e| format!("Falha ao executar 'git status': {}", e))?;
+    // 1. Validate if the git tree is clean. The break-glass procedure for
+    //    emergencies is to use the canonical absolute path to nixos-rebuild:
+    //    sudo /run/current-system/sw/bin/nixos-rebuild switch --flake /etc/kryonixos#<host>
+    //    That bypasses the CLI lockdown by design; no in-binary flag should
+    //    ever reproduce that behavior, because the kryx binary itself would
+    //    be the broken thing needing recovery.
+    let git_status = Command::new("git")
+        .arg("status")
+        .arg("--porcelain")
+        .output()
+        .map_err(|e| format!("Falha ao executar 'git status': {}", e))?;
 
-        if !git_status.stdout.is_empty() {
-            return Err(format!(
-                "{}\n{}",
-                "A árvore do git não está limpa. Faça commit ou stash das suas alterações antes de executar o switch.\n\
-                 Para emergências, use: kryx switch --bypass-lock",
-                String::from_utf8_lossy(&git_status.stdout)
-            ));
-        }
-    } else {
-        println!(
-            "{} [BREAK-GLASS] Verificação de árvore git suja ignorada.",
-            "[WARN]".yellow()
-        );
+    if !git_status.stdout.is_empty() {
+        return Err(format!(
+            "{}\n{}",
+            "A árvore do git não está limpa. Faça commit ou stash das suas alterações antes de executar o switch.",
+            String::from_utf8_lossy(&git_status.stdout)
+        ));
     }
 
     // 2. Identify the target hostname
@@ -44,8 +41,8 @@ pub fn run_switch(target: Option<String>, bypass_lock: bool) -> Result<(), Strin
         hostname
     );
 
-    // 3. Run nh os switch via ABSOLUTE PATH (break-glass: /run/current-system/sw/bin/nh)
-    // This path survives even if the Kryonix ecosystem is broken.
+    // 3. Run nh os switch via ABSOLUTE PATH so the call survives any
+    //    future $PATH poisoning or wrapper substitution (e.g. cli-lockdown).
     let nh_path = "/run/current-system/sw/bin/nh";
     println!("{} Executando nh os switch...", "[INFO]".cyan());
 

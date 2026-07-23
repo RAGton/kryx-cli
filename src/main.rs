@@ -72,8 +72,8 @@ fn main() {
     }
 
     match cli.command {
-        Commands::Switch { target, bypass_lock } => {
-            if let Err(e) = services::modules::run_switch(target, bypass_lock) {
+        Commands::Switch { target } => {
+            if let Err(e) = services::modules::run_switch(target) {
                 eprintln!("Erro Crítico: {}", e);
                 exit(1);
             }

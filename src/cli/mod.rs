@@ -13,9 +13,6 @@ pub enum Commands {
     Switch {
         /// Hostname alvo opcional
         target: Option<String>,
-        /// Ignora verificação de árvore git suja (break-glass para emergências)
-        #[arg(long)]
-        bypass_lock: bool,
     },
     /// Gerencia deploy de imagens diskless (NODE)
     Deploy {
