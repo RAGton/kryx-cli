@@ -40,12 +40,12 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         hostname
     );
 
-    // 3. Run nixos-rebuild switch
-    println!("{} Executando nixos-rebuild switch...", "[INFO]".cyan());
+    // 3. Run nh os switch (replaces nixos-rebuild)
+    println!("{} Executando nh os switch...", "[INFO]".cyan());
 
-    let status = Command::new("nixos-rebuild")
+    let status = Command::new("nh")
+        .arg("os")
         .arg("switch")
-        .arg("--flake")
         .arg(&format!("/etc/kryonixos#{}", hostname))
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -57,10 +57,10 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
             "{} Switch do sistema concluído com sucesso!",
             "[PASS]".green()
         );
-        Ok(())
+        Ok(()) // nh os switch succeeded
     } else {
         Err(format!(
-            "nixos-rebuild switch abortado ou falhou com status: {}",
+            "nh os switch abortado ou falhou com status: {}",
             status
         ))
     }
