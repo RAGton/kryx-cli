@@ -13,7 +13,7 @@ fn discover_real_nix_dir() -> Option<String> {
     let mut best: Option<(String, std::time::SystemTime)> = None;
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
-        if !name.starts_with("*-nix-2.") {
+        if !name.contains("-nix-2.") {
             continue;
         }
         let bin = entry.path().join("bin/nix");
