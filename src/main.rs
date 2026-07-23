@@ -237,5 +237,25 @@ fn main() {
                 exit(1);
             }
         }
+        Commands::Completion { shell } => {
+            use clap_complete::{generate, Shell};
+            let shell_enum = match shell.as_str() {
+                "bash" => Shell::Bash,
+                "zsh" => Shell::Zsh,
+                "fish" => Shell::Fish,
+                "elvish" => Shell::Elvish,
+                "powershell" => Shell::PowerShell,
+                other => {
+                    eprintln!(
+                        "Shell não suportado: {}. Use: bash, zsh, fish, elvish, powershell",
+                        other
+                    );
+                    exit(1);
+                }
+            };
+            let mut cmd = Cli::command();
+            let bin_name = cmd.get_name().to_string();
+            generate(shell_enum, &mut cmd, bin_name, &mut std::io::stdout());
+        }
     }
 }

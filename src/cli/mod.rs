@@ -22,7 +22,7 @@ pub enum Commands {
         #[arg(long, short)]
         force: bool,
         /// Hostname alvo (flake attribute) para instanciar (ex: thinkServer)
-        #[arg(long, short)]
+        #[arg(long, short = 'H')]
         hostname: Option<String>,
     },
     /// Reseta o sistema físico para as configurações originais
@@ -93,6 +93,8 @@ pub enum Commands {
     /// Repassa argumentos para `nix fmt` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
     Fmt { args: Vec<String> },
+    /// Gera script de autocompletar para o shell especificado (zsh, bash, fish)
+    Completion { shell: String },
 }
 
 #[derive(Subcommand)]
