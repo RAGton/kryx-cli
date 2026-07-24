@@ -72,6 +72,11 @@ fn build_report() -> DoctorReport {
     check_git(&mut checks);
     check_zfs(&mut checks, &host);
     check_network(&mut checks);
+    check_cpu(&mut checks);
+    check_memory(&mut checks);
+    check_disk(&mut checks);
+    check_services(&mut checks);
+    check_security(&mut checks);
 
     let pass = checks
         .iter()
@@ -418,6 +423,206 @@ fn check_network(checks: &mut Vec<CheckResult>) {
             CheckStatus::Warn,
             "nenhum nameserver em /etc/resolv.conf".to_string(),
         );
+    }
+}
+
+// ============================================================================
+// NOVOS CHECKS: CPU, MEMORY, DISK, SERVICES, SECURITY
+// ============================================================================
+
+fn check_cpu(checks: &mut Vec<CheckResult>) {
+    // Load average
+    if let Ok(content) = fs::read_to_string("/proc/loadavg") {
+        let parts: Vec<&str> = content.split_whitespace().collect();
+        if parts.len() >= 3 {
+            let load1: f64 = parts[0].parse().unwrap_or(0.0);
+            let nproc = std::thread::available_parallelism()
+                .map(|n| n.get() as f64)
+                .unwrap_or(1.0);
+            let ratio = load1 / nproc;
+            let (status, msg) = if ratio > 2.0 {
+                (CheckStatus::Fail, format!("load1={:.2} ({}x nproc) saturado", load1, ratio))
+            } else if ratio > 1.0 {
+                (CheckStatus::Warn, format!("load1={:.2} ({}x nproc) alto", load1, ratio))
+            } else {
+                (CheckStatus::Pass, format!("load1={:.2} ({}x nproc)", load1, ratio))
+            };
+            push(checks, "cpu", "loadavg", status, msg);
+        }
+    }
+
+    // Temperatura
+    if let Some(c) = read_cpu_temp_celsius() {
+        let (status, msg) = if c > 90 {
+            (CheckStatus::Fail, format!("CPU {}C critico", c))
+        } else if c > 80 {
+            (CheckStatus::Warn, format!("CPU {}C alto", c))
+        } else {
+            (CheckStatus::Pass, format!("CPU {}C", c))
+        };
+        push(checks, "cpu", "temperature", status, msg);
+    }
+}
+
+fn read_cpu_temp_celsius() -> Option<i64> {
+    if let Ok(out) = Command::new("/run/current-system/sw/bin/sensors").args(["-A"]).output() {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            for line in s.lines() {
+                if line.contains("°C") && (line.contains("Tctl") || line.contains("Package")) {
+                    if let Some(pos) = line.find('+') {
+                        let after = &line[pos+1..];
+                        let num_str: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                        if let Ok(c) = num_str.parse::<f64>() {
+                            return Some(c as i64);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Ok(entries) = fs::read_dir("/sys/class/thermal") {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("thermal_zone") {
+                if let Ok(t) = fs::read_to_string(e.path().join("temp")) {
+                    if let Ok(milli) = t.trim().parse::<i64>() {
+                        return Some(milli / 1000);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn check_memory(checks: &mut Vec<CheckResult>) {
+    let total_kb = read_proc_mem_kb("MemTotal:").unwrap_or(0);
+    let avail_kb = read_proc_mem_kb("MemAvailable:").unwrap_or(0);
+    if total_kb == 0 {
+        return;
+    }
+    let used_kb = total_kb - avail_kb;
+    let pct = (used_kb as f64 / total_kb as f64) * 100.0;
+    let total_gb = total_kb as f64 / 1_048_576.0;
+    let used_gb = used_kb as f64 / 1_048_576.0;
+    let (status, msg) = if pct > 95.0 {
+        (CheckStatus::Fail, format!("{:.1}G/{:.1}G ({:.0}%) critico", used_gb, total_gb, pct))
+    } else if pct > 85.0 {
+        (CheckStatus::Warn, format!("{:.1}G/{:.1}G ({:.0}%) alto", used_gb, total_gb, pct))
+    } else {
+        (CheckStatus::Pass, format!("{:.1}G/{:.1}G ({:.0}%)", used_gb, total_gb, pct))
+    };
+    push(checks, "memory", "ram", status, msg);
+
+    // Swap
+    let swap_total = read_proc_mem_kb("SwapTotal:").unwrap_or(0);
+    let swap_free = read_proc_mem_kb("SwapFree:").unwrap_or(0);
+    if swap_total > 0 {
+        let swap_used = swap_total - swap_free;
+        let swap_pct = (swap_used as f64 / swap_total as f64) * 100.0;
+        let used_mb = swap_used as f64 / 1024.0;
+        let total_mb = swap_total as f64 / 1024.0;
+        let (status, msg) = if swap_pct > 50.0 {
+            (CheckStatus::Warn, format!("{:.0}M/{:.0}M ({:.0}%) pressao", used_mb, total_mb, swap_pct))
+        } else {
+            (CheckStatus::Pass, format!("{:.0}M/{:.0}M ({:.0}%)", used_mb, total_mb, swap_pct))
+        };
+        push(checks, "memory", "swap", status, msg);
+    }
+}
+
+fn read_proc_mem_kb(prefix: &str) -> Option<u64> {
+    let content = fs::read_to_string("/proc/meminfo").ok()?;
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix(prefix) {
+            let mut parts = rest.split_whitespace();
+            if let Some(num) = parts.next() {
+                if let Ok(n) = num.parse::<u64>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn check_disk(checks: &mut Vec<CheckResult>) {
+    let out = Command::new("/run/current-system/sw/bin/df")
+        .args(["-P"])
+        .output();
+    let Some(out) = out.ok() else { return; };
+    if !out.status.success() {
+        return;
+    }
+    let content = String::from_utf8_lossy(&out.stdout);
+    let mut critical: Vec<String> = Vec::new();
+    let mut high: Vec<String> = Vec::new();
+    for line in content.lines().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 6 {
+            continue;
+        }
+        let mount = parts[5];
+        if !matches!(mount, "/" | "/nix" | "/home" | "/var" | "/var/log" | "/boot") {
+            continue;
+        }
+        let cap_str = parts[4].trim_end_matches('%');
+        if let Ok(cap) = cap_str.parse::<i64>() {
+            if cap >= 95 {
+                critical.push(format!("{}={}%", mount, cap));
+            } else if cap >= 85 {
+                high.push(format!("{}={}%", mount, cap));
+            }
+        }
+    }
+    if !critical.is_empty() {
+        push(checks, "disk", "space", CheckStatus::Fail, format!("critico: {}", critical.join(", ")));
+    } else if !high.is_empty() {
+        push(checks, "disk", "space", CheckStatus::Warn, format!("alto: {}", high.join(", ")));
+    } else {
+        push(checks, "disk", "space", CheckStatus::Pass, "mounts criticos ok".to_string());
+    }
+}
+
+fn check_services(checks: &mut Vec<CheckResult>) {
+    let critical_units = &[
+        ("kryxd.service", false),
+        ("NetworkManager.service", false),
+        ("sshd.service", true),
+    ];
+    for (unit, warn_if_missing) in critical_units {
+        check_systemd_unit(checks, "services", unit, *warn_if_missing);
+    }
+}
+
+fn check_security(checks: &mut Vec<CheckResult>) {
+    // Lockdown v2 (Kryonix Guard)
+    let lockdown_active = fs::read_to_string("/home/rocha/.nix-profile/bin/nix")
+        .map(|c| c.contains("Kryonix Guard"))
+        .unwrap_or(false);
+    if lockdown_active {
+        push(checks, "security", "lockdown", CheckStatus::Pass,
+             "Kryonix Guard v2 ativo em home.packages".to_string());
+    } else {
+        push(checks, "security", "lockdown", CheckStatus::Warn,
+             "Kryonix Guard v2 nao detectado".to_string());
+    }
+
+    // sudo setuid
+    if let Ok(meta) = fs::metadata("/run/wrappers/bin/sudo") {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = meta.permissions().mode();
+        if mode & 0o4000 != 0 {
+            push(checks, "security", "sudo-setuid", CheckStatus::Pass,
+                 "setuid bit presente".to_string());
+        } else {
+            push(checks, "security", "sudo-setuid", CheckStatus::Fail,
+                 "setuid bit ausente (nh escalation quebrada)".to_string());
+        }
+    } else {
+        push(checks, "security", "sudo-setuid", CheckStatus::Warn,
+             "/run/wrappers/bin/sudo nao encontrado".to_string());
     }
 }
 
