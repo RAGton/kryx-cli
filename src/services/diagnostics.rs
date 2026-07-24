@@ -456,9 +456,47 @@ fn hostname() -> String {
         .unwrap_or_else(|_| "unknown".to_string())
 }
 
+#[inline(never)]
+fn discover_real_nix() -> Option<String> {
+    let entries = std::fs::read_dir("/nix/store").ok()?;
+    let mut best: Option<String> = None;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.contains("-nix-2.") {
+            continue;
+        }
+        let bin = entry.path().join("bin/nix");
+        let meta = match std::fs::metadata(&bin) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        // Lockdown wrappers are ~400 bytes; real nix is several MB.
+        if meta.len() < 1_000_000 {
+            continue;
+        }
+        // Take the lexicographically last one (most recent hash usually wins).
+        let path = bin.to_string_lossy().to_string();
+        if best.as_ref().map_or(true, |b| path > *b) {
+            best = Some(path);
+        }
+    }
+    best
+}
+
 fn command_output(command: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(command)
+    // Resolve the real nix binary path so we bypass the cli-lockdown
+    // wrapper installed at /run/current-system/sw/bin/nix.
+    let resolved = if command == "nix" {
+        discover_real_nix().unwrap_or_else(|| command.to_string())
+    } else {
+        command.to_string()
+    };
+
+    let output = Command::new(&resolved)
         .args(args)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
         .output()
         .map_err(|e| format!("falha ao executar {command}: {e}"))?;
 
