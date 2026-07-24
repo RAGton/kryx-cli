@@ -2,6 +2,8 @@ use colored::Colorize;
 use std::fs;
 use std::process::{Command, Stdio};
 
+use crate::services::modules;
+
 pub enum NodeAction {
     List,
     Publish,
@@ -51,6 +53,23 @@ pub fn run_node_command(action: NodeAction) -> Result<(), String> {
                 "{} Iniciando build declarativo da imagem diskless (node-client)...",
                 "[INFO]".cyan()
             );
+
+            // Same lockdown-bypass as services::modules::run_switch and
+            // services::update::run_update. Without this, `kryx node publish`
+            // is blocked by the "[Kryonix Guard] O comando 'nix' foi bloqueado"
+            // wrapper as soon as `kryonix.security.cliLockdown.enable = true`.
+            let real_nix_dir = modules::discover_real_nix_dir().ok_or_else(|| {
+                "Could not locate a real nix binary in /nix/store. \
+                 The Kryonix cli-lockdown may have removed it. Use the \
+                 absolute path /run/current-system/sw/bin/nix instead."
+                    .to_string()
+            })?;
+            println!("{} Real nix path: {}", "[INFO]".cyan(), real_nix_dir);
+
+            let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let patched_path = format!("{}:{}", real_nix_dir, current_path);
+
             let status = Command::new("nix")
                 .args([
                     "build",
@@ -58,6 +77,10 @@ pub fn run_node_command(action: NodeAction) -> Result<(), String> {
                     "-o",
                     "/tmp/kryonix-node-build",
                 ])
+                .env("PATH", patched_path)
+                .env("HOME", format!("/home/{}", sudo_user))
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .env("GIT_CONFIG_SYSTEM", "/dev/null")
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .status()

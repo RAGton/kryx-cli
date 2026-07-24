@@ -2,7 +2,8 @@ use colored::Colorize;
 use std::process::{Command, Stdio};
 
 /// Discover the directory containing a real (non-wrapped) `nix` binary.
-fn discover_real_nix_dir() -> Option<String> {
+#[inline(never)]
+pub fn discover_real_nix_dir() -> Option<String> {
     let entries = std::fs::read_dir("/nix/store").ok()?;
     let mut best: Option<(String, std::time::SystemTime)> = None;
     for entry in entries.flatten() {
@@ -79,13 +80,11 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     let real_nix_dir = match discover_real_nix_dir() {
         Some(d) => d,
         None => {
-            return Err(
-                "Could not locate a real nix binary in /nix/store. \
+            return Err("Could not locate a real nix binary in /nix/store. \
                  The Kryonix cli-lockdown may have removed it, which \
                  would break nh. Run the build outside of kryx switch \
                  using /run/current-system/sw/bin/nixos-rebuild."
-                    .to_string(),
-            );
+                .to_string());
         }
     };
 
