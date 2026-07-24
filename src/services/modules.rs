@@ -2,28 +2,6 @@ use colored::Colorize;
 use std::process::{Command, Stdio};
 
 /// Discover the directory containing a real (non-wrapped) `nix` binary.
-///
-/// The cli-lockdown module installs tiny shell wrappers at
-/// `/run/current-system/sw/bin/nix`, but nh needs the real ELF binary
-/// when it runs `nix --version`. We scan `/nix/store` for ELF binaries
-/// named `nix` (file size > 1MB is a good heuristic — the wrappers are
-/// ~400 bytes).
-/// Resolve the numeric UID of a username by parsing /etc/passwd.
-/// Used to construct HOME_<uid> env var that sudo expects.
-fn uid_of(user: &str) -> u32 {
-    if let Ok(content) = std::fs::read_to_string("/etc/passwd") {
-        for line in content.lines() {
-            let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() >= 3 && parts[0] == user {
-                if let Ok(uid) = parts[2].parse::<u32>() {
-                    return uid;
-                }
-            }
-        }
-    }
-    1000 // fallback
-}
-
 fn discover_real_nix_dir() -> Option<String> {
     let entries = std::fs::read_dir("/nix/store").ok()?;
     let mut best: Option<(String, std::time::SystemTime)> = None;
@@ -122,55 +100,35 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     let current_path = std::env::var("PATH").unwrap_or_default();
     let patched_path = format!("{}:{}", real_nix_dir, current_path);
 
-    // nh 4.x refuses to run as root — it escalates privileges internally.
-    // Detect the original user (when invoked via sudo) and run nh via
-    // `sudo -u <user>` so it can prompt for elevation as needed.
-    let sudo_user = std::env::var("SUDO_USER").ok();
+    // kryx runs as root (via sudo). The nh binary refuses to run as root
+    // and re-drops privileges itself — but only if invoked as a non-root user.
+    // We use `sudo -u <user>` to re-drop, then `env` to inject our vars
+    // (sudo's env_reset would otherwise strip GIT_CONFIG_*).
+    // The nh binary reads SUDO_USER and escalates via the elevation-strategy
+    // for the parts that need root (bootloader activation).
+    let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
+    let mut cmd = Command::new("/run/wrappers/bin/sudo");
+    cmd.arg("-u")
+        .arg(&sudo_user)
+        .arg("env")
+        .arg(format!("HOME=/home/{}", sudo_user))
+        .arg(format!("PATH={}", patched_path))
+        .arg("GIT_CONFIG_GLOBAL=/dev/null")
+        .arg("GIT_CONFIG_SYSTEM=/dev/null")
+        .arg("GIT_CONFIG_NOSYSTEM=1")
+        .arg(nh_path)
+        .arg("os")
+        .arg("switch")
+        .arg("--elevation-strategy")
+        .arg("/run/wrappers/bin/sudo")
+        .arg(format!("/etc/kryonixos#{}", hostname));
 
-    // Build the argv. We invoke nh either directly (root context, no SUDO_USER)
-    // or via sudo -u (preserving the original user).
-    let mut argv: Vec<String> = Vec::new();
-    if let Some(user) = sudo_user.as_deref() {
-        argv.push("sudo".to_string());
-        argv.push("-u".to_string());
-        argv.push(user.to_string());
-        argv.push("-E".to_string()); // preserve env (PATH, etc.)
-        argv.push("--".to_string());
-    }
-    argv.push(nh_path.to_string());
-    argv.push("os".to_string());
-    argv.push("switch".to_string());
-    argv.push(format!("/etc/kryonixos#{}", hostname));
-
-    let program = argv.remove(0);
-
-    // Resolve the home dir for the target user. When invoked via sudo,
-    // $HOME may still be /root; nh (and libgit2) need the real user's home.
-    let home_dir = sudo_user
-        .as_deref()
-        .and_then(|u| std::env::var(format!("HOME_{}", uid_of(u))).ok())
-        .or_else(|| std::env::var("HOME").ok())
-        .unwrap_or_else(|| "/home/rocha".to_string());
-
-    let mut cmd = Command::new(&program);
-    cmd.args(&argv)
-        .env("PATH", patched_path)
-        .env("HOME", home_dir)
-        // Bloqueia leitura de configs globais do git em paths inacessíveis
-        // (e.g. /root/.gitconfig quando o kryx roda como root via sudo).
-        // Garante que nh/libgit2 não falhe com "failed to stat /root/.gitconfig".
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_SYSTEM", "/dev/null")
-        // Impede que git leia config do filesystem sem .gitconfig explicit.
-        // (Em alguns sistemas, GIT_CONFIG_NOSYSTEM é redundante com o acima,
-        // mas garante defesa em profundidade.)
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .stdout(Stdio::inherit())
+    cmd.stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
     let status = cmd
         .status()
-        .map_err(|e| format!("Falha ao invocar '{}': {}", program, e))?;
+        .map_err(|e| format!("Falha ao invocar '{}': {}", nh_path, e))?;
 
     if status.success() {
         println!(
