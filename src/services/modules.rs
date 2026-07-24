@@ -100,30 +100,59 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     let current_path = std::env::var("PATH").unwrap_or_default();
     let patched_path = format!("{}:{}", real_nix_dir, current_path);
 
-    // kryx runs as root (via sudo). The nh binary refuses to run as root
-    // and re-drops privileges itself — but only if invoked as a non-root user.
-    // We use `sudo -u <user>` to re-drop, then `env` to inject our vars
-    // (sudo's env_reset would otherwise strip GIT_CONFIG_*).
-    // The nh binary reads SUDO_USER and escalates via the elevation-strategy
-    // for the parts that need root (bootloader activation).
+    // kryx NEVER uses sudo internally. When invoked via sudo, we
+    // re-drop privileges to the original user using `setpriv` (a
+    // native Linux capability, not sudo). nh 4.x refuses to run as
+    // root, so we re-drop BEFORE calling nh. After evaluation, nh
+    // re-escalates via --elevation-strategy ONLY for steps that need
+    // root (bootloader install).
     let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
-    let mut cmd = Command::new("/run/wrappers/bin/sudo");
-    cmd.arg("-u")
-        .arg(&sudo_user)
-        .arg("env")
-        .arg(format!("HOME=/home/{}", sudo_user))
-        .arg(format!("PATH={}", patched_path))
-        .arg("GIT_CONFIG_GLOBAL=/dev/null")
-        .arg("GIT_CONFIG_SYSTEM=/dev/null")
-        .arg("GIT_CONFIG_NOSYSTEM=1")
-        .arg(nh_path)
-        .arg("os")
-        .arg("switch")
-        .arg("--elevation-strategy")
-        .arg("/run/wrappers/bin/sudo")
-        .arg(format!("/etc/kryonixos#{}", hostname));
 
-    cmd.stdout(Stdio::inherit())
+    // Resolve UID/GID for setpriv
+    let user_id: u32 = std::fs::read_to_string("/etc/passwd")
+        .ok()
+        .and_then(|c| {
+            c.lines()
+                .find(|l| l.starts_with(&format!("{}:", sudo_user)))
+                .and_then(|l| l.split(':').nth(2)?.parse().ok())
+        })
+        .unwrap_or(1000);
+
+    // Check if running as root — only re-drop if so
+    let needs_redrop = unsafe { libc::geteuid() == 0 };
+
+    let setpriv_path = "/run/current-system/sw/bin/setpriv";
+    let mut cmd = if needs_redrop {
+        let mut c = Command::new(setpriv_path);
+        c.arg(format!("--reuid={}", user_id))
+            .arg(format!("--regid={}", user_id))
+            .arg("--clear-groups")
+            .arg(nh_path)
+            .arg("os")
+            .arg("switch")
+            .arg("--elevation-strategy")
+            .arg("/run/wrappers/bin/sudo")
+            .arg(format!("/etc/kryonixos#{}", hostname));
+        c
+    } else {
+        let mut c = Command::new(nh_path);
+        c.arg("os")
+            .arg("switch")
+            .arg("--elevation-strategy")
+            .arg("/run/wrappers/bin/sudo")
+            .arg(format!("/etc/kryonixos#{}", hostname));
+        c
+    };
+
+    // Inject env vars directly on the Command (no sudo env_reset).
+    // nh reads these during flake evaluation to skip reading
+    // /root/.gitconfig (inaccessible, perms 700).
+    cmd.env("PATH", patched_path)
+        .env("HOME", format!("/home/{}", sudo_user))
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
     let status = cmd
