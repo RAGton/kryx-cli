@@ -257,5 +257,17 @@ fn main() {
             let bin_name = cmd.get_name().to_string();
             generate(shell_enum, &mut cmd, bin_name, &mut std::io::stdout());
         }
+        Commands::Kve { command } => {
+            if let Err(e) = cli::kve::run(command) {
+                eprintln!("{}", e);
+                exit(2);
+            }
+        }
+        Commands::Think { command } => {
+            if let Err(e) = cli::think::run(command) {
+                eprintln!("{}", e);
+                exit(2);
+            }
+        }
     }
 }
