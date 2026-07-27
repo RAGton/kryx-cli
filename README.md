@@ -55,6 +55,23 @@ uma flag ou subcomando com implementação mockada ou parcial.
 
 ---
 
+## Subcomandos recentes (branch `pr-13-kcp-cli-proxy`)
+
+A branch de trabalho adiciona proxy da API do `kryxd` (KCP) e comandos de
+virtualização:
+
+| Comando | Subcomando | Handler | Status | Notas |
+|---|---|---|---|---|
+| `Kcp` | `Proxy` | `kcp::run_kcp_proxy` | WIP | Proxy HTTP da API do `kryxd` (porta 8080) para o `kryx` |
+| `Kve` | `List` / `Launch` / `Stop` | `kve::run_kve_*` | WIP | Operações Incus via `kryxd` (virtualização) |
+| `Think` | — | `think::run_think` | WIP | Ponte de inferência/local think (Ollama) |
+
+> Estes subcomandos **ainda não estão em `main`** — vivem em
+> `pr-13-kcp-cli-proxy`. O README reflete `main` + o estado auditado em
+> `6fb58a4`; atualizar após o merge da PR.
+
+---
+
 ## Authorization model (extraído de `src/main.rs:14-56`)
 
 O `kryx` filtra subcomandos com base no **role** retornado por
