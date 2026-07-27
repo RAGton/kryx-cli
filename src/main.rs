@@ -263,11 +263,45 @@ fn main() {
                 exit(2);
             }
         }
+        Commands::Vm { command } => {
+            let mapped = map_vm_to_kve(command);
+            if let Err(e) = cli::kve::run(mapped) {
+                eprintln!("{}", e);
+                exit(2);
+            }
+        }
+        Commands::Ct { command } => {
+            let mapped = map_ct_to_kve(command);
+            if let Err(e) = cli::kve::run(mapped) {
+                eprintln!("{}", e);
+                exit(2);
+            }
+        }
         Commands::Think { command } => {
             if let Err(e) = cli::think::run(command) {
                 eprintln!("{}", e);
                 exit(2);
             }
         }
+    }
+}
+
+/// Converte `kryx vm <subcmd>` para o subcomando KVE equivalente.
+fn map_vm_to_kve(cmd: cli::VmSubcommand) -> cli::kve::KveCommand {
+    use cli::VmSubcommand as V;
+    use cli::kve::KveCommand as K;
+    match cmd {
+        V::List { json } => K::Vms { json },
+        V::Info { name, json } => K::Instance { name, json },
+    }
+}
+
+/// Converte `kryx ct <subcmd>` para o subcomando KVE equivalente.
+fn map_ct_to_kve(cmd: cli::CtSubcommand) -> cli::kve::KveCommand {
+    use cli::CtSubcommand as C;
+    use cli::kve::KveCommand as K;
+    match cmd {
+        C::List { json } => K::Containers { json },
+        C::Info { name, json } => K::Instance { name, json },
     }
 }
