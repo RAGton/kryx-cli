@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
 
+pub mod kve;
+pub mod think;
+
 #[derive(Parser)]
 #[command(name = "kryx", version = "0.1.0", author, about = "Kryonix Unified CLI", long_about = None)]
 pub struct Cli {
@@ -95,6 +98,56 @@ pub enum Commands {
     Fmt { args: Vec<String> },
     /// Gera script de autocompletar para o shell especificado (zsh, bash, fish)
     Completion { shell: String },
+    /// Proxy para o dominio KVE (`/api/v2/kve/*` no daemon kryxd)
+    Kve {
+        #[command(subcommand)]
+        command: kve::KveCommand,
+    },
+    /// Lista containers (proxy para kve.instances kind=container)
+    Vm {
+        #[command(subcommand)]
+        command: VmSubcommand,
+    },
+    /// Lista containers (proxy para kve.instances kind=virtual-machine)
+    Ct {
+        #[command(subcommand)]
+        command: CtSubcommand,
+    },
+    /// Proxy para o dominio Think (`/api/v2/think/*` no daemon kryxd)
+    Think {
+        #[command(subcommand)]
+        command: think::ThinkCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum VmSubcommand {
+    /// Lista VMs gerenciadas pelo KVE
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Detalhe de uma VM por nome
+    Info {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CtSubcommand {
+    /// Lista containers gerenciados pelo KVE
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Detalhe de um container por nome
+    Info {
+        name: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
