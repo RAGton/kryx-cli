@@ -84,6 +84,12 @@ pub enum Commands {
     /// Repassa argumentos para `nix build` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
     Build { args: Vec<String> },
+    /// Validação estática do flake (wrapper de `nix flake check`)
+    Check {
+        /// Caminho para o flake ou diretório (default: .)
+        #[arg(default_value = ".")]
+        path: String,
+    },
     /// Repassa argumentos para `nix run` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
     Run { args: Vec<String> },

@@ -54,6 +54,19 @@ pub fn build(args: Vec<String>) -> Result<(), String> {
     run_passthrough(NIX_PATH, &argv, "build")
 }
 
+pub fn check(args: Vec<String>) -> Result<(), String> {
+    let mut argv = vec![
+        "--extra-experimental-features".to_string(),
+        "nix-command flakes".to_string(),
+        "flake".to_string(),
+        "check".to_string(),
+        "--keep-going".to_string(),
+        "--impure".to_string(),
+    ];
+    argv.extend(args);
+    run_passthrough(NIX_PATH, &argv, "check")
+}
+
 pub fn run(args: Vec<String>) -> Result<(), String> {
     let mut argv = vec!["run".to_string()];
     argv.extend(args);

@@ -45,7 +45,7 @@ fn main() {
 
     // Authorization Hook
     let authorized = match &cli.command {
-        Commands::Identity { .. } | Commands::Setup => true,
+        Commands::Identity { .. } | Commands::Setup | Commands::Check { .. } => true,
         Commands::Deploy { .. } | Commands::Node { .. } | Commands::Feature { .. } => is_core,
         _ => is_core || is_desktop,
     };
@@ -209,6 +209,12 @@ fn main() {
         }
         Commands::Build { args } => {
             if let Err(e) = services::passthrough::build(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Check { path } => {
+            if let Err(e) = services::passthrough::check(vec![path]) {
                 eprintln!("Erro: {}", e);
                 exit(1);
             }
