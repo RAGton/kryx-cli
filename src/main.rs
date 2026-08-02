@@ -147,7 +147,8 @@ fn main() {
             }
         },
         Commands::Setup => {
-            println!("Setup não implementado ainda.");
+            eprintln!("AVISO: kryx setup é um stub. Implementação real agendada para Fase 3.");
+            exit(1);
         }
         Commands::System { command } => match command {
             cli::SystemSubcommand::Report => {

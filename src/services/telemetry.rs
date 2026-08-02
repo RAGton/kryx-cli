@@ -36,18 +36,15 @@ pub fn report_heartbeat() -> Result<(), String> {
         }
     });
 
-    println!("[INFO] Enviando telemetria: {}", payload);
-
-    let target_url = "http://thinkserver.local/api/telemetry"; // URL do Core
-
-    match ureq::post(target_url).send_json(&payload) {
-        Ok(_) => {
-            println!("[PASS] Telemetria enviada com sucesso para {}", target_url);
-        }
-        Err(e) => {
-            eprintln!("[WARN] Falha ao enviar telemetria HTTP: {}", e);
-        }
-    }
-
-    Ok(())
+    let _ = payload;
+    eprintln!(
+        "[WARN] Telemetria via CLI está em construção. Não há endpoint remoto configurado; \
+         o envio de telemetria para o Core (ex.: thinkserver.local) foi desativado até \
+         que o contrato de telemetria seja formalizado. Métricas coletadas localmente \
+         permanecem disponíveis via `kryx status` e `kryx doctor`."
+    );
+    Err(
+        "Telemetria via CLI está em construção: nenhuma transmissão remota foi executada."
+            .to_string(),
+    )
 }

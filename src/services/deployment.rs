@@ -109,7 +109,20 @@ fn run_deploy_inner(
     println!("{} Instalando o NixOS no alvo...", "[INFO]".cyan());
 
     // 2. Instalação do Sistema
-    let host_target = format!(".#{}", hostname.unwrap_or("thinkServer"));
+    // Fallback de hostname: quando o usuário não informa um hostname explícito,
+    // assumimos `thinkServer` por compatibilidade histórica. Emitimos um único
+    // aviso para deixar claro que o alvo é o default e não uma escolha consciente.
+    let host_name = if let Some(h) = hostname {
+        h.to_string()
+    } else {
+        println!(
+            "{} Hostname não informado — usando fallback padrão 'thinkServer'. \
+             Considere informar um hostname explícito via --hostname.",
+            "[WARN]".yellow()
+        );
+        "thinkServer".to_string()
+    };
+    let host_target = format!(".#{}", host_name);
     let install_success = runner.run(
         "sudo",
         &[

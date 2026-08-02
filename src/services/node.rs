@@ -153,13 +153,15 @@ pub fn run_node_command(action: NodeAction) -> Result<(), String> {
         }
         NodeAction::Reboot { target } => {
             let t = target.unwrap_or_else(|| "all".to_string());
-            println!(
+            eprintln!(
                 "{} Reinício remoto solicitado para estação(ões): {}",
                 "[INFO]".cyan(),
                 t
             );
-            println!("Mock: Enviando sinal de reboot (não implementado).");
-            Ok(())
+            eprintln!(
+                "AVISO: kryx node reboot é um stub. Implementação real agendada para Fase 3."
+            );
+            Err("kryx node reboot é um stub. Implementação real agendada para Fase 3.".to_string())
         }
     }
 }

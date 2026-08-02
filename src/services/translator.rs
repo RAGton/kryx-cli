@@ -1,5 +1,7 @@
 use crate::domain::config::{InstallPlanV2, Topology};
 
+// DEPRECATED: Mantido temporariamente apenas por dependência de testes órfãos.
+
 /// Gera a configuração Nix declarativa baseada no plano de instalação.
 pub fn generate_nix_config(plan: &InstallPlanV2) -> Result<String, String> {
     let mut config = String::new();
