@@ -183,89 +183,6 @@ fn run_deploy_inner(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::cell::RefCell;
-    use std::fs;
-
-    struct MockRunner {
-        disko_result: Result<bool, String>,
-        install_result: Result<bool, String>,
-        commands_run: RefCell<Vec<String>>,
-    }
-
-    impl CommandRunner for MockRunner {
-        fn run(&self, cmd: &str, args: &[&str]) -> Result<bool, String> {
-            let full_cmd = format!("{} {}", cmd, args.join(" "));
-            self.commands_run.borrow_mut().push(full_cmd.clone());
-
-            if full_cmd.contains("disko") {
-                self.disko_result.clone()
-            } else if full_cmd.contains("nixos-install") {
-                self.install_result.clone()
-            } else {
-                Ok(true)
-            }
-        }
-
-        fn copy_config(&self, _src: &Path) -> Result<(), String> {
-            self.commands_run
-                .borrow_mut()
-                .push("COPY_CONFIG".to_string());
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn test_deploy_fails_if_disko_fails() {
-        let path_buf = std::env::temp_dir().join("mock");
-        fs::write(&path_buf, "mock").unwrap();
-        let path = path_buf.to_str().unwrap();
-
-        let runner = MockRunner {
-            disko_result: Ok(false), // Simula falha do disko
-            install_result: Ok(true),
-            commands_run: RefCell::new(vec![]),
-        };
-
-        let result = run_deploy_inner(Some(path), Some("testServer"), &runner);
-
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Disko falhou. O particionamento não foi concluído. Abortando deploy."
-        );
-
-        let cmds = runner.commands_run.borrow();
-        // A cópia pro FS e o nixos-install não devem rodar.
-        assert!(!cmds.contains(&"COPY_CONFIG".to_string()));
-        assert!(!cmds.iter().any(|c| c.contains("nixos-install")));
-    }
-
-    #[test]
-    fn test_deploy_success() {
-        let path_buf = std::env::temp_dir().join("mock");
-        fs::write(&path_buf, "mock").unwrap();
-        let path = path_buf.to_str().unwrap();
-
-        let runner = MockRunner {
-            disko_result: Ok(true),
-            install_result: Ok(true),
-            commands_run: RefCell::new(vec![]),
-        };
-
-        let result = run_deploy_inner(Some(path), Some("testServer"), &runner);
-
-        assert!(result.is_ok());
-
-        let cmds = runner.commands_run.borrow();
-        assert!(cmds.iter().any(|c| c.contains("disko")));
-        assert!(cmds.contains(&"COPY_CONFIG".to_string()));
-        assert!(cmds.iter().any(|c| c.contains("nixos-install")));
-    }
-}
-
 pub fn run_factory_reset(preserve_home: bool) -> Result<(), String> {
     println!("{} Iniciando modo Factory Reset...", "[WARN]".yellow());
 
@@ -348,5 +265,88 @@ pub fn run_factory_reset(preserve_home: bool) -> Result<(), String> {
         Ok(())
     } else {
         Err("nixos-install falhou no Factory Reset.".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::fs;
+
+    struct MockRunner {
+        disko_result: Result<bool, String>,
+        install_result: Result<bool, String>,
+        commands_run: RefCell<Vec<String>>,
+    }
+
+    impl CommandRunner for MockRunner {
+        fn run(&self, cmd: &str, args: &[&str]) -> Result<bool, String> {
+            let full_cmd = format!("{} {}", cmd, args.join(" "));
+            self.commands_run.borrow_mut().push(full_cmd.clone());
+
+            if full_cmd.contains("disko") {
+                self.disko_result.clone()
+            } else if full_cmd.contains("nixos-install") {
+                self.install_result.clone()
+            } else {
+                Ok(true)
+            }
+        }
+
+        fn copy_config(&self, _src: &Path) -> Result<(), String> {
+            self.commands_run
+                .borrow_mut()
+                .push("COPY_CONFIG".to_string());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_deploy_fails_if_disko_fails() {
+        let path_buf = std::env::temp_dir().join("mock");
+        fs::write(&path_buf, "mock").unwrap();
+        let path = path_buf.to_str().unwrap();
+
+        let runner = MockRunner {
+            disko_result: Ok(false), // Simula falha do disko
+            install_result: Ok(true),
+            commands_run: RefCell::new(vec![]),
+        };
+
+        let result = run_deploy_inner(Some(path), Some("testServer"), &runner);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Disko falhou. O particionamento não foi concluído. Abortando deploy."
+        );
+
+        let cmds = runner.commands_run.borrow();
+        // A cópia pro FS e o nixos-install não devem rodar.
+        assert!(!cmds.contains(&"COPY_CONFIG".to_string()));
+        assert!(!cmds.iter().any(|c| c.contains("nixos-install")));
+    }
+
+    #[test]
+    fn test_deploy_success() {
+        let path_buf = std::env::temp_dir().join("mock");
+        fs::write(&path_buf, "mock").unwrap();
+        let path = path_buf.to_str().unwrap();
+
+        let runner = MockRunner {
+            disko_result: Ok(true),
+            install_result: Ok(true),
+            commands_run: RefCell::new(vec![]),
+        };
+
+        let result = run_deploy_inner(Some(path), Some("testServer"), &runner);
+
+        assert!(result.is_ok());
+
+        let cmds = runner.commands_run.borrow();
+        assert!(cmds.iter().any(|c| c.contains("disko")));
+        assert!(cmds.contains(&"COPY_CONFIG".to_string()));
+        assert!(cmds.iter().any(|c| c.contains("nixos-install")));
     }
 }

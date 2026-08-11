@@ -13,7 +13,7 @@ pub fn report_heartbeat() -> Result<(), String> {
     println!("[PASS] Manifesto lido com sucesso.");
 
     let zfs_usage = Command::new("zpool")
-        .args(&["list", "-H", "-o", "capacity"])
+        .args(["list", "-H", "-o", "capacity"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string());

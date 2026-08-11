@@ -56,19 +56,18 @@ fn main() {
     }
 
     // Identity Guard Block (Operações destrutivas)
-    let is_critical = match &cli.command {
-        Commands::Deploy { .. } | Commands::FactoryReset { .. } => true,
-        Commands::Node {
-            command: cli::NodeSubcommand::Publish,
-        } => true,
-        _ => false,
-    };
+    let is_critical = matches!(
+        &cli.command,
+        Commands::Deploy { .. }
+            | Commands::FactoryReset { .. }
+            | Commands::Node {
+                command: cli::NodeSubcommand::Publish,
+            }
+    );
 
-    if is_critical {
-        if let Err(e) = &identity_result {
-            eprintln!("Identity Guard Blocked Operation: {}", e);
-            exit(1);
-        }
+    if is_critical && let Err(e) = &identity_result {
+        eprintln!("Identity Guard Blocked Operation: {}", e);
+        exit(1);
     }
 
     match cli.command {
@@ -208,6 +207,36 @@ fn main() {
                 exit(1);
             }
         }
+        Commands::Gc { args } => {
+            if let Err(e) = services::passthrough::gc(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::HomeManager { args } => {
+            if let Err(e) = services::passthrough::home_manager(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::CopyClosure { args } => {
+            if let Err(e) = services::passthrough::copy_closure(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::NixEnv { args } => {
+            if let Err(e) = services::passthrough::nix_env(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::NixChannel { args } => {
+            if let Err(e) = services::passthrough::nix_channel(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
         Commands::Build { args } => {
             if let Err(e) = services::passthrough::build(args) {
                 eprintln!("Erro: {}", e);
@@ -245,7 +274,7 @@ fn main() {
             }
         }
         Commands::Completion { shell } => {
-            use clap_complete::{generate, Shell};
+            use clap_complete::{Shell, generate};
             let shell_enum = match shell.as_str() {
                 "bash" => Shell::Bash,
                 "zsh" => Shell::Zsh,

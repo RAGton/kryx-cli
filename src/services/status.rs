@@ -63,10 +63,10 @@ fn read_proc_mem(prefix: &str) -> Option<u64> {
         if let Some(rest) = line.strip_prefix(prefix) {
             // "MemTotal:       16384000 kB"
             let mut parts = rest.split_whitespace();
-            if let Some(num) = parts.next() {
-                if let Ok(n) = num.parse::<u64>() {
-                    return Some(n);
-                }
+            if let Some(num) = parts.next()
+                && let Ok(n) = num.parse::<u64>()
+            {
+                return Some(n);
             }
         }
     }
@@ -77,7 +77,13 @@ fn read_loadavg() -> Option<String> {
     let content = fs::read_to_string("/proc/loadavg").ok()?;
     let parts: Vec<&str> = content.split_whitespace().collect();
     if parts.len() >= 3 {
-        Some(format!("{} {} {} (cores: {})", parts[0], parts[1], parts[2], nproc()))
+        Some(format!(
+            "{} {} {} (cores: {})",
+            parts[0],
+            parts[1],
+            parts[2],
+            nproc()
+        ))
     } else {
         None
     }
@@ -105,13 +111,12 @@ fn read_cpu_temp() -> Option<String> {
     if let Ok(out) = Command::new("/run/current-system/sw/bin/sensors")
         .args(["-A"])
         .output()
+        && out.status.success()
     {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            for line in s.lines() {
-                if line.contains("°C") && (line.contains("Tctl") || line.contains("Package")) {
-                    return Some(line.trim().to_string());
-                }
+        let s = String::from_utf8_lossy(&out.stdout);
+        for line in s.lines() {
+            if line.contains("°C") && (line.contains("Tctl") || line.contains("Package")) {
+                return Some(line.trim().to_string());
             }
         }
     }
@@ -119,12 +124,11 @@ fn read_cpu_temp() -> Option<String> {
     if let Ok(entries) = fs::read_dir("/sys/class/thermal") {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with("thermal_zone") {
-                if let Ok(t) = fs::read_to_string(e.path().join("temp")) {
-                    if let Ok(milli) = t.trim().parse::<i64>() {
-                        return Some(format!("{:.1}°C", milli as f64 / 1000.0));
-                    }
-                }
+            if name.starts_with("thermal_zone")
+                && let Ok(t) = fs::read_to_string(e.path().join("temp"))
+                && let Ok(milli) = t.trim().parse::<i64>()
+            {
+                return Some(format!("{:.1}°C", milli as f64 / 1000.0));
             }
         }
     }
@@ -137,13 +141,13 @@ fn read_network() -> Vec<String> {
         .args(["-o", "-4", "addr", "show", "scope", "global"])
         .output();
     let mut lines = Vec::new();
-    if let Ok(o) = out {
-        if o.status.success() {
-            for line in String::from_utf8_lossy(&o.stdout).lines() {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 4 {
-                    lines.push(format!("{}={}", parts[1], parts[3]));
-                }
+    if let Ok(o) = out
+        && o.status.success()
+    {
+        for line in String::from_utf8_lossy(&o.stdout).lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 4 {
+                lines.push(format!("{}={}", parts[1], parts[3]));
             }
         }
     }
@@ -156,15 +160,17 @@ fn read_disk_usage() -> Vec<String> {
         .args(["-h", "--output=source,size,used,avail,pcent,target"])
         .output();
     let mut lines = Vec::new();
-    if let Ok(o) = out {
-        if o.status.success() {
-            for line in String::from_utf8_lossy(&o.stdout).lines().skip(1) {
-                // Filtra só mounts de interesse
-                if line.contains("/nix") || line.contains("/home")
-                    || line.contains("/var") || line.contains("/boot")
-                {
-                    lines.push(line.to_string());
-                }
+    if let Ok(o) = out
+        && o.status.success()
+    {
+        for line in String::from_utf8_lossy(&o.stdout).lines().skip(1) {
+            // Filtra só mounts de interesse
+            if line.contains("/nix")
+                || line.contains("/home")
+                || line.contains("/var")
+                || line.contains("/boot")
+            {
+                lines.push(line.to_string());
             }
         }
     }
@@ -225,21 +231,20 @@ fn read_kernel() -> String {
 
 /// Uptime formatado.
 fn read_uptime() -> String {
-    if let Ok(content) = fs::read_to_string("/proc/uptime") {
-        if let Some(secs_str) = content.split_whitespace().next() {
-            if let Ok(secs) = secs_str.parse::<u64>() {
-                let d = secs / 86400;
-                let h = (secs % 86400) / 3600;
-                let m = (secs % 3600) / 60;
-                if d > 0 {
-                    return format!("{}d {}h {}m", d, h, m);
-                }
-                if h > 0 {
-                    return format!("{}h {}m", h, m);
-                }
-                return format!("{}m", m);
-            }
+    if let Ok(content) = fs::read_to_string("/proc/uptime")
+        && let Some(secs_str) = content.split_whitespace().next()
+        && let Ok(secs) = secs_str.parse::<u64>()
+    {
+        let d = secs / 86400;
+        let h = (secs % 86400) / 3600;
+        let m = (secs % 3600) / 60;
+        if d > 0 {
+            return format!("{}d {}h {}m", d, h, m);
         }
+        if h > 0 {
+            return format!("{}h {}m", h, m);
+        }
+        return format!("{}m", m);
     }
     "?".to_string()
 }
@@ -252,11 +257,7 @@ fn read_unit(unit: &str) -> String {
     match out {
         Ok(o) => {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() {
-                "?".to_string()
-            } else {
-                s
-            }
+            if s.is_empty() { "?".to_string() } else { s }
         }
         Err(_) => "?".to_string(),
     }
@@ -406,11 +407,10 @@ pub fn run_status() -> Result<(), String> {
     if let Ok(o) = Command::new("/run/current-system/sw/bin/ip")
         .args(["route", "show", "default"])
         .output()
+        && o.status.success()
     {
-        if o.status.success() {
-            for line in String::from_utf8_lossy(&o.stdout).lines().take(1) {
-                println!("    {}  {}", "gw:".dimmed(), line.dimmed());
-            }
+        for line in String::from_utf8_lossy(&o.stdout).lines().take(1) {
+            println!("    {}  {}", "gw:".dimmed(), line.dimmed());
         }
     }
     // DNS
@@ -433,10 +433,10 @@ pub fn run_status() -> Result<(), String> {
         "Incus:".dimmed(),
         paint_service_status(&incus_unit)
     );
-    if incus_unit == "active" {
-        if let Some(c) = read_incus_containers() {
-            println!("    {}  containers: {}", "".dimmed(), c.green());
-        }
+    if incus_unit == "active"
+        && let Some(c) = read_incus_containers()
+    {
+        println!("    {}  containers: {}", "".dimmed(), c.green());
     }
 
     let podman_unit = read_unit("podman");

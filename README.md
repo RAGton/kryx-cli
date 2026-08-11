@@ -46,6 +46,20 @@ uma flag ou subcomando com implementação mockada ou parcial.
 | `Shell [args…]` | — | `passthrough::shell` | READY | Passthrough para `/run/current-system/sw/bin/nix shell` |
 | `Search [args…]` | — | `passthrough::search` | READY | Passthrough para `/run/current-system/sw/bin/nh search` |
 | `Clean [args…]` | — | `passthrough::clean` | READY | Passthrough para `nh clean` |
+| `Gc [args…]` | — | `passthrough::gc` | READY (KCR-CLI-3 Phase A.1) | Passthrough para `nix-collect-garbage`. Resolve via `discover_real_bin` |
+| `HomeManager [args…]` | — | `passthrough::home_manager` | READY (KCR-CLI-3 Phase A.2) | Passthrough para `home-manager` CLI |
+| `CopyClosure [args…]` | — | `passthrough::copy_closure` | READY (KCR-CLI-3 Phase A.3) | Passthrough para `nix-copy-closure` |
+| `NixEnv [args…]` | — | `passthrough::nix_env` | READY (KCR-CLI-3 Phase A.4) | Passthrough para `nix-env` legacy |
+| `NixChannel [args…]` | — | `passthrough::nix_channel` | READY (KCR-CLI-3 Phase A.5) | Passthrough para `nix-channel` legacy |
+
+**Help behavior (KCR-CLI-3-HELP):** os 5 catch-alls da Phase A
+(`gc`, `home-manager`, `copy-closure`, `nix-env`, `nix-channel`) renderizam
+um **help híbrido** quando invocados com `--help` / `-h` na primeira
+posição: seção kryx (opções do wrapper, exemplos, notas) seguida do
+output real do `binary --help` nativo, separadas por linhas `═══`. Use
+`kryx <cmd> -- --help` para ver **apenas** o help do binário nativo
+(convenção Unix padrão para o separador `--`).
+
 | `Build [args…]` | — | `passthrough::build` | READY | Passthrough para `nix build` |
 | `Run [args…]` | — | `passthrough::run` | READY | Passthrough para `nix run` |
 | `Develop [args…]` | — | `passthrough::develop` | READY | Passthrough para `nix develop` |

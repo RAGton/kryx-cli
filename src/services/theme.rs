@@ -59,24 +59,23 @@ pub fn run_apply_theme() -> Result<(), String> {
         if let Ok(entries) = fs::read_dir(dir_path) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("jsx") {
-                    if let Ok(content) = fs::read_to_string(&path) {
-                        let mut new_content = content.clone();
-                        let mut changed = false;
+                if path.is_file()
+                    && path.extension().and_then(|s| s.to_str()) == Some("jsx")
+                    && let Ok(content) = fs::read_to_string(&path)
+                {
+                    let mut new_content = content.clone();
+                    let mut changed = false;
 
-                        for (old, new) in &replacements {
-                            if new_content.contains(old) {
-                                new_content = new_content.replace(old, new);
-                                changed = true;
-                            }
+                    for (old, new) in &replacements {
+                        if new_content.contains(old) {
+                            new_content = new_content.replace(old, new);
+                            changed = true;
                         }
+                    }
 
-                        if changed {
-                            if fs::write(&path, new_content).is_ok() {
-                                println!("{} Atualizado {:?}", "[OK]".green(), path);
-                                updated_files += 1;
-                            }
-                        }
+                    if changed && fs::write(&path, new_content).is_ok() {
+                        println!("{} Atualizado {:?}", "[OK]".green(), path);
+                        updated_files += 1;
                     }
                 }
             }

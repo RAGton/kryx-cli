@@ -21,7 +21,7 @@ pub fn discover_real_nix_dir() -> Option<String> {
             continue;
         }
         let mtime = meta.modified().ok()?;
-        if best.as_ref().map_or(true, |(_, t)| mtime > *t) {
+        if best.as_ref().is_none_or(|(_, t)| mtime > *t) {
             best = Some((bin.to_string_lossy().to_string(), mtime));
         }
     }

@@ -67,10 +67,7 @@ pub fn get_v2<T: DeserializeOwned>(path: &str) -> Result<T, KryxdError> {
             let body = response
                 .into_string()
                 .unwrap_or_else(|_| "<body unreadable>".to_string());
-            KryxdError::HttpStatus {
-                status: status,
-                body,
-            }
+            KryxdError::HttpStatus { status, body }
         }
         ureq::Error::Transport(t) => KryxdError::Unreachable(t.to_string()),
     })?;

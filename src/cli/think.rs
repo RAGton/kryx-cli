@@ -4,7 +4,7 @@
 //! (cluster map + zpool status) entra na Fase 3.
 
 use clap::Subcommand;
-use cli_table::{print_stdout, Table};
+use cli_table::{Table, print_stdout};
 
 use kryx::client;
 
@@ -32,8 +32,7 @@ struct ThinkRow {
 pub fn run(cmd: ThinkCommand) -> Result<(), String> {
     match cmd {
         ThinkCommand::Topology => {
-            let value = client::get_v2_raw("think/topology")
-                .map_err(|e| e.to_string())?;
+            let value = client::get_v2_raw("think/topology").map_err(|e| e.to_string())?;
             let status = value
                 .get("status")
                 .and_then(|v| v.as_str())
@@ -64,8 +63,7 @@ pub fn run(cmd: ThinkCommand) -> Result<(), String> {
             Ok(())
         }
         ThinkCommand::StorageZfs => {
-            let value = client::get_v2_raw("think/storage/zfs")
-                .map_err(|e| e.to_string())?;
+            let value = client::get_v2_raw("think/storage/zfs").map_err(|e| e.to_string())?;
             let source = value
                 .get("source")
                 .and_then(|v| v.as_str())
