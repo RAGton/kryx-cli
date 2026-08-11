@@ -24,21 +24,21 @@ pub fn run_node_command(action: NodeAction) -> Result<(), String> {
 
             let mut found = false;
             for file in &lease_files {
-                if let Ok(content) = fs::read_to_string(file) {
-                    if !content.trim().is_empty() {
-                        found = true;
-                        println!("Leases encontrados em {}:", file.bold());
-                        // Parsing básico para tabularização minimalista se for dnsmasq
-                        for line in content.lines() {
-                            let parts: Vec<&str> = line.split_whitespace().collect();
-                            if parts.len() >= 4 {
-                                println!(
-                                    "IP: {:<15} MAC: {:<17} Hostname: {:<20}",
-                                    parts[2], parts[1], parts[3]
-                                );
-                            } else {
-                                println!("{}", line);
-                            }
+                if let Ok(content) = fs::read_to_string(file)
+                    && !content.trim().is_empty()
+                {
+                    found = true;
+                    println!("Leases encontrados em {}:", file.bold());
+                    // Parsing básico para tabularização minimalista se for dnsmasq
+                    for line in content.lines() {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 4 {
+                            println!(
+                                "IP: {:<15} MAC: {:<17} Hostname: {:<20}",
+                                parts[2], parts[1], parts[3]
+                            );
+                        } else {
+                            println!("{}", line);
                         }
                     }
                 }
@@ -105,15 +105,15 @@ pub fn run_node_command(action: NodeAction) -> Result<(), String> {
 
             // Garantir que a pasta pai exista
             let parent_dir = std::path::Path::new(link_path).parent().unwrap();
-            if !parent_dir.exists() {
-                if let Err(e) = fs::create_dir_all(parent_dir) {
-                    println!(
-                        "{} Aviso: Falha ao criar pasta {:?}: {}",
-                        "[WARN]".yellow(),
-                        parent_dir,
-                        e
-                    );
-                }
+            if !parent_dir.exists()
+                && let Err(e) = fs::create_dir_all(parent_dir)
+            {
+                println!(
+                    "{} Aviso: Falha ao criar pasta {:?}: {}",
+                    "[WARN]".yellow(),
+                    parent_dir,
+                    e
+                );
             }
 
             let ln_status = Command::new("ln")

@@ -441,11 +441,20 @@ fn check_cpu(checks: &mut Vec<CheckResult>) {
                 .unwrap_or(1.0);
             let ratio = load1 / nproc;
             let (status, msg) = if ratio > 2.0 {
-                (CheckStatus::Fail, format!("load1={:.2} ({}x nproc) saturado", load1, ratio))
+                (
+                    CheckStatus::Fail,
+                    format!("load1={:.2} ({}x nproc) saturado", load1, ratio),
+                )
             } else if ratio > 1.0 {
-                (CheckStatus::Warn, format!("load1={:.2} ({}x nproc) alto", load1, ratio))
+                (
+                    CheckStatus::Warn,
+                    format!("load1={:.2} ({}x nproc) alto", load1, ratio),
+                )
             } else {
-                (CheckStatus::Pass, format!("load1={:.2} ({}x nproc)", load1, ratio))
+                (
+                    CheckStatus::Pass,
+                    format!("load1={:.2} ({}x nproc)", load1, ratio),
+                )
             };
             push(checks, "cpu", "loadavg", status, msg);
         }
@@ -465,18 +474,24 @@ fn check_cpu(checks: &mut Vec<CheckResult>) {
 }
 
 fn read_cpu_temp_celsius() -> Option<i64> {
-    if let Ok(out) = Command::new("/run/current-system/sw/bin/sensors").args(["-A"]).output() {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            for line in s.lines() {
-                if line.contains("°C") && (line.contains("Tctl") || line.contains("Package")) {
-                    if let Some(pos) = line.find('+') {
-                        let after = &line[pos+1..];
-                        let num_str: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
-                        if let Ok(c) = num_str.parse::<f64>() {
-                            return Some(c as i64);
-                        }
-                    }
+    if let Ok(out) = Command::new("/run/current-system/sw/bin/sensors")
+        .args(["-A"])
+        .output()
+        && out.status.success()
+    {
+        let s = String::from_utf8_lossy(&out.stdout);
+        for line in s.lines() {
+            if line.contains("°C")
+                && (line.contains("Tctl") || line.contains("Package"))
+                && let Some(pos) = line.find('+')
+            {
+                let after = &line[pos + 1..];
+                let num_str: String = after
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit() || *c == '.')
+                    .collect();
+                if let Ok(c) = num_str.parse::<f64>() {
+                    return Some(c as i64);
                 }
             }
         }
@@ -484,12 +499,11 @@ fn read_cpu_temp_celsius() -> Option<i64> {
     if let Ok(entries) = fs::read_dir("/sys/class/thermal") {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with("thermal_zone") {
-                if let Ok(t) = fs::read_to_string(e.path().join("temp")) {
-                    if let Ok(milli) = t.trim().parse::<i64>() {
-                        return Some(milli / 1000);
-                    }
-                }
+            if name.starts_with("thermal_zone")
+                && let Ok(t) = fs::read_to_string(e.path().join("temp"))
+                && let Ok(milli) = t.trim().parse::<i64>()
+            {
+                return Some(milli / 1000);
             }
         }
     }
@@ -507,11 +521,20 @@ fn check_memory(checks: &mut Vec<CheckResult>) {
     let total_gb = total_kb as f64 / 1_048_576.0;
     let used_gb = used_kb as f64 / 1_048_576.0;
     let (status, msg) = if pct > 95.0 {
-        (CheckStatus::Fail, format!("{:.1}G/{:.1}G ({:.0}%) critico", used_gb, total_gb, pct))
+        (
+            CheckStatus::Fail,
+            format!("{:.1}G/{:.1}G ({:.0}%) critico", used_gb, total_gb, pct),
+        )
     } else if pct > 85.0 {
-        (CheckStatus::Warn, format!("{:.1}G/{:.1}G ({:.0}%) alto", used_gb, total_gb, pct))
+        (
+            CheckStatus::Warn,
+            format!("{:.1}G/{:.1}G ({:.0}%) alto", used_gb, total_gb, pct),
+        )
     } else {
-        (CheckStatus::Pass, format!("{:.1}G/{:.1}G ({:.0}%)", used_gb, total_gb, pct))
+        (
+            CheckStatus::Pass,
+            format!("{:.1}G/{:.1}G ({:.0}%)", used_gb, total_gb, pct),
+        )
     };
     push(checks, "memory", "ram", status, msg);
 
@@ -524,9 +547,18 @@ fn check_memory(checks: &mut Vec<CheckResult>) {
         let used_mb = swap_used as f64 / 1024.0;
         let total_mb = swap_total as f64 / 1024.0;
         let (status, msg) = if swap_pct > 50.0 {
-            (CheckStatus::Warn, format!("{:.0}M/{:.0}M ({:.0}%) pressao", used_mb, total_mb, swap_pct))
+            (
+                CheckStatus::Warn,
+                format!(
+                    "{:.0}M/{:.0}M ({:.0}%) pressao",
+                    used_mb, total_mb, swap_pct
+                ),
+            )
         } else {
-            (CheckStatus::Pass, format!("{:.0}M/{:.0}M ({:.0}%)", used_mb, total_mb, swap_pct))
+            (
+                CheckStatus::Pass,
+                format!("{:.0}M/{:.0}M ({:.0}%)", used_mb, total_mb, swap_pct),
+            )
         };
         push(checks, "memory", "swap", status, msg);
     }
@@ -537,10 +569,10 @@ fn read_proc_mem_kb(prefix: &str) -> Option<u64> {
     for line in content.lines() {
         if let Some(rest) = line.strip_prefix(prefix) {
             let mut parts = rest.split_whitespace();
-            if let Some(num) = parts.next() {
-                if let Ok(n) = num.parse::<u64>() {
-                    return Some(n);
-                }
+            if let Some(num) = parts.next()
+                && let Ok(n) = num.parse::<u64>()
+            {
+                return Some(n);
             }
         }
     }
@@ -551,7 +583,9 @@ fn check_disk(checks: &mut Vec<CheckResult>) {
     let out = Command::new("/run/current-system/sw/bin/df")
         .args(["-P"])
         .output();
-    let Some(out) = out.ok() else { return; };
+    let Some(out) = out.ok() else {
+        return;
+    };
     if !out.status.success() {
         return;
     }
@@ -564,7 +598,10 @@ fn check_disk(checks: &mut Vec<CheckResult>) {
             continue;
         }
         let mount = parts[5];
-        if !matches!(mount, "/" | "/nix" | "/home" | "/var" | "/var/log" | "/boot") {
+        if !matches!(
+            mount,
+            "/" | "/nix" | "/home" | "/var" | "/var/log" | "/boot"
+        ) {
             continue;
         }
         let cap_str = parts[4].trim_end_matches('%');
@@ -577,11 +614,29 @@ fn check_disk(checks: &mut Vec<CheckResult>) {
         }
     }
     if !critical.is_empty() {
-        push(checks, "disk", "space", CheckStatus::Fail, format!("critico: {}", critical.join(", ")));
+        push(
+            checks,
+            "disk",
+            "space",
+            CheckStatus::Fail,
+            format!("critico: {}", critical.join(", ")),
+        );
     } else if !high.is_empty() {
-        push(checks, "disk", "space", CheckStatus::Warn, format!("alto: {}", high.join(", ")));
+        push(
+            checks,
+            "disk",
+            "space",
+            CheckStatus::Warn,
+            format!("alto: {}", high.join(", ")),
+        );
     } else {
-        push(checks, "disk", "space", CheckStatus::Pass, "mounts criticos ok".to_string());
+        push(
+            checks,
+            "disk",
+            "space",
+            CheckStatus::Pass,
+            "mounts criticos ok".to_string(),
+        );
     }
 }
 
@@ -602,11 +657,21 @@ fn check_security(checks: &mut Vec<CheckResult>) {
         .map(|c| c.contains("Kryonix Guard"))
         .unwrap_or(false);
     if lockdown_active {
-        push(checks, "security", "lockdown", CheckStatus::Pass,
-             "Kryonix Guard v2 ativo em home.packages".to_string());
+        push(
+            checks,
+            "security",
+            "lockdown",
+            CheckStatus::Pass,
+            "Kryonix Guard v2 ativo em home.packages".to_string(),
+        );
     } else {
-        push(checks, "security", "lockdown", CheckStatus::Warn,
-             "Kryonix Guard v2 nao detectado".to_string());
+        push(
+            checks,
+            "security",
+            "lockdown",
+            CheckStatus::Warn,
+            "Kryonix Guard v2 nao detectado".to_string(),
+        );
     }
 
     // sudo setuid
@@ -614,15 +679,30 @@ fn check_security(checks: &mut Vec<CheckResult>) {
         use std::os::unix::fs::PermissionsExt;
         let mode = meta.permissions().mode();
         if mode & 0o4000 != 0 {
-            push(checks, "security", "sudo-setuid", CheckStatus::Pass,
-                 "setuid bit presente".to_string());
+            push(
+                checks,
+                "security",
+                "sudo-setuid",
+                CheckStatus::Pass,
+                "setuid bit presente".to_string(),
+            );
         } else {
-            push(checks, "security", "sudo-setuid", CheckStatus::Fail,
-                 "setuid bit ausente (nh escalation quebrada)".to_string());
+            push(
+                checks,
+                "security",
+                "sudo-setuid",
+                CheckStatus::Fail,
+                "setuid bit ausente (nh escalation quebrada)".to_string(),
+            );
         }
     } else {
-        push(checks, "security", "sudo-setuid", CheckStatus::Warn,
-             "/run/wrappers/bin/sudo nao encontrado".to_string());
+        push(
+            checks,
+            "security",
+            "sudo-setuid",
+            CheckStatus::Warn,
+            "/run/wrappers/bin/sudo nao encontrado".to_string(),
+        );
     }
 }
 
@@ -681,7 +761,7 @@ fn discover_real_nix() -> Option<String> {
         }
         // Take the lexicographically last one (most recent hash usually wins).
         let path = bin.to_string_lossy().to_string();
-        if best.as_ref().map_or(true, |b| path > *b) {
+        if best.as_ref().is_none_or(|b| path > *b) {
             best = Some(path);
         }
     }

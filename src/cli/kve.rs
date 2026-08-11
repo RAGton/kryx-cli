@@ -16,7 +16,7 @@
 //! - `kryx ct list/info`  (alias via wrapper em main.rs)
 
 use clap::Subcommand;
-use cli_table::{print_stdout, Table};
+use cli_table::{Table, print_stdout};
 use serde::{Deserialize, Serialize};
 
 use kryx::client;
@@ -103,9 +103,21 @@ struct StorageRow {
 }
 
 fn row_of_instance(v: &serde_json::Value) -> InstanceRow {
-    let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("?").to_string();
-    let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("?").to_string();
-    let state = v.get("state").and_then(|x| x.as_str()).unwrap_or("?").to_string();
+    let name = v
+        .get("name")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
+    let kind = v
+        .get("kind")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
+    let state = v
+        .get("state")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
     let ipv4 = v
         .get("ipv4")
         .and_then(|x| x.as_array())
@@ -121,25 +133,48 @@ fn row_of_instance(v: &serde_json::Value) -> InstanceRow {
         .and_then(|x| x.as_str())
         .unwrap_or("?")
         .to_string();
-    InstanceRow { name, kind, state, ipv4, arch }
+    InstanceRow {
+        name,
+        kind,
+        state,
+        ipv4,
+        arch,
+    }
 }
 
 fn row_of_storage(v: &serde_json::Value) -> StorageRow {
-    let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("?").to_string();
-    let driver = v.get("driver").and_then(|x| x.as_str()).unwrap_or("?").to_string();
-    let state = v.get("state").and_then(|x| x.as_str()).unwrap_or("?").to_string();
+    let name = v
+        .get("name")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
+    let driver = v
+        .get("driver")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
+    let state = v
+        .get("state")
+        .and_then(|x| x.as_str())
+        .unwrap_or("?")
+        .to_string();
     let description = v
         .get("description")
         .and_then(|x| x.as_str())
         .unwrap_or("")
         .to_string();
-    StorageRow { name, driver, state, description }
+    StorageRow {
+        name,
+        driver,
+        state,
+        description,
+    }
 }
 
 fn list_instances(json: bool, kind_filter: Option<&str>) -> Result<(), String> {
     let raw = client::get_v2_raw("kve/instances").map_err(|e| e.to_string())?;
-    let env: InstancesEnvelope = serde_json::from_value(raw.clone())
-        .map_err(|e| format!("resposta kryxd invalida: {e}"))?;
+    let env: InstancesEnvelope =
+        serde_json::from_value(raw.clone()).map_err(|e| format!("resposta kryxd invalida: {e}"))?;
     let items: Vec<serde_json::Value> = env
         .instances
         .into_iter()
@@ -198,9 +233,10 @@ pub fn run(cmd: KveCommand) -> Result<(), String> {
             let raw = client::get_v2_raw("kve/instances").map_err(|e| e.to_string())?;
             let env: InstancesEnvelope = serde_json::from_value(raw.clone())
                 .map_err(|e| format!("resposta kryxd invalida: {e}"))?;
-            let found = env.instances.into_iter().find(|v| {
-                v.get("name").and_then(|x| x.as_str()) == Some(name.as_str())
-            });
+            let found = env
+                .instances
+                .into_iter()
+                .find(|v| v.get("name").and_then(|x| x.as_str()) == Some(name.as_str()));
             match found {
                 Some(v) => {
                     if json {

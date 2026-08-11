@@ -103,8 +103,7 @@ pub fn generate_nix_config(plan: &InstallPlanV2) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::domain::config::{
-        BtrfsStoragePlan, Encryption, FileSystem, MountPlan, RepositoryPlan, StoragePlan,
-        ZfsStoragePlan,
+        Encryption, FileSystem, MountPlan, RepositoryPlan, StoragePlan, ZfsStoragePlan,
     };
     use std::collections::BTreeMap;
 

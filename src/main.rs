@@ -56,19 +56,18 @@ fn main() {
     }
 
     // Identity Guard Block (Operações destrutivas)
-    let is_critical = match &cli.command {
-        Commands::Deploy { .. } | Commands::FactoryReset { .. } => true,
-        Commands::Node {
-            command: cli::NodeSubcommand::Publish,
-        } => true,
-        _ => false,
-    };
+    let is_critical = matches!(
+        &cli.command,
+        Commands::Deploy { .. }
+            | Commands::FactoryReset { .. }
+            | Commands::Node {
+                command: cli::NodeSubcommand::Publish,
+            }
+    );
 
-    if is_critical {
-        if let Err(e) = &identity_result {
-            eprintln!("Identity Guard Blocked Operation: {}", e);
-            exit(1);
-        }
+    if is_critical && let Err(e) = &identity_result {
+        eprintln!("Identity Guard Blocked Operation: {}", e);
+        exit(1);
     }
 
     match cli.command {
@@ -274,7 +273,7 @@ fn main() {
             }
         }
         Commands::Completion { shell } => {
-            use clap_complete::{generate, Shell};
+            use clap_complete::{Shell, generate};
             let shell_enum = match shell.as_str() {
                 "bash" => Shell::Bash,
                 "zsh" => Shell::Zsh,
@@ -334,8 +333,8 @@ fn map_vm_to_kve(cmd: cli::VmSubcommand) -> cli::kve::KveCommand {
 
 /// Converte `kryx ct <subcmd>` para o subcomando KVE equivalente.
 fn map_ct_to_kve(cmd: cli::CtSubcommand) -> cli::kve::KveCommand {
-    use cli::kve::KveCommand as K;
     use cli::CtSubcommand as C;
+    use cli::kve::KveCommand as K;
     match cmd {
         C::List { json } => K::Containers { json },
         C::Info { name, json } => K::Instance { name, json },
