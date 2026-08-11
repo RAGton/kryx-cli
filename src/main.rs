@@ -207,6 +207,36 @@ fn main() {
                 exit(1);
             }
         }
+        Commands::Gc { args } => {
+            if let Err(e) = services::passthrough::gc(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::HomeManager { args } => {
+            if let Err(e) = services::passthrough::home_manager(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::CopyClosure { args } => {
+            if let Err(e) = services::passthrough::copy_closure(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::NixEnv { args } => {
+            if let Err(e) = services::passthrough::nix_env(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::NixChannel { args } => {
+            if let Err(e) = services::passthrough::nix_channel(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
         Commands::Build { args } => {
             if let Err(e) = services::passthrough::build(args) {
                 eprintln!("Erro: {}", e);
@@ -304,8 +334,8 @@ fn map_vm_to_kve(cmd: cli::VmSubcommand) -> cli::kve::KveCommand {
 
 /// Converte `kryx ct <subcmd>` para o subcomando KVE equivalente.
 fn map_ct_to_kve(cmd: cli::CtSubcommand) -> cli::kve::KveCommand {
-    use cli::CtSubcommand as C;
     use cli::kve::KveCommand as K;
+    use cli::CtSubcommand as C;
     match cmd {
         C::List { json } => K::Containers { json },
         C::Info { name, json } => K::Instance { name, json },
