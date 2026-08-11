@@ -41,6 +41,19 @@ Antes de qualquer bump de versão, carregue a skill e siga o procedimento SSOT.
 3. Procurar testes existentes (em `tests/`).
 4. Preferir atualizar testes existentes a criar novos.
 
+## §HELP — workarounds conhecidos (KCR-CLI-3-HELP)
+
+- O help híbrido dos catch-alls Phase A detecta `--help`/`-h` em
+  `args[0]`. Para ver **só** o help nativo (convenção Unix), use
+  `kryx <cmd> -- --help`.
+- **Limitação do clap:** com `trailing_var_arg + allow_hyphen_values`,
+  o clap consome o token `--` internamente e não o entrega pro handler.
+  Por isso o detector em `run_passthrough_with_help` lê `std::env::args()`
+  raw (não `args`) pra identificar o `--` explícito.
+- Se um futuro catch-all Phase B/C não seguir esse template, copiar a
+  estrutura `KryxHelp` + `help_text()` + `run_passthrough_with_help` de
+  `src/services/passthrough.rs` (seção "KCR-CLI-3-HELP").
+
 ## Related notes
 
 - Lockdown pitfalls canônico: [[kryonix-vault/02-Areas/Kryonix/canonical/kryx-nix-lockdown-pitfalls]]

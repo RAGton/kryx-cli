@@ -83,24 +83,44 @@ pub enum Commands {
     Clean { args: Vec<String> },
     /// Phase A.1 — Coleta garbage do Nix (`nix-collect-garbage`). Alias
     /// muscle-memory para o legacy wrapper que deleta generations antigas.
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     Gc { args: Vec<String> },
     /// Phase A.2 — Wrapper para `home-manager` CLI. Kryonix usa Home
     /// Manager extensivamente; este catch-all evita ter que fazer
     /// `nix run nix-community/home-manager` a cada invocação.
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     HomeManager { args: Vec<String> },
     /// Phase A.3 — Wrapper para `nix-copy-closure` (Tier 1.13). Crítico
     /// para deploy entre hosts.
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     CopyClosure { args: Vec<String> },
     /// Phase A.4 — Wrapper para `nix-env` legacy (Tier 1.5). Preserva
     /// muscle memory de installs user-level sem flakes.
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     NixEnv { args: Vec<String> },
     /// Phase A.5 — Wrapper para `nix-channel` legacy (Tier 1.4). Útil
     /// para `nix-channel --rollback` após update problemático.
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     NixChannel { args: Vec<String> },
     /// Repassa argumentos para `nix build` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
