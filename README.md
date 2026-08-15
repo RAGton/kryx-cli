@@ -51,6 +51,11 @@ uma flag ou subcomando com implementação mockada ou parcial.
 | `CopyClosure [args…]` | — | `passthrough::copy_closure` | READY (KCR-CLI-3 Phase A.3) | Passthrough para `nix-copy-closure` |
 | `NixEnv [args…]` | — | `passthrough::nix_env` | READY (KCR-CLI-3 Phase A.4) | Passthrough para `nix-env` legacy |
 | `NixChannel [args…]` | — | `passthrough::nix_channel` | READY (KCR-CLI-3 Phase A.5) | Passthrough para `nix-channel` legacy |
+| `Eval [args…]` | — | `passthrough::eval` | READY (KCR-CLI-3-B Phase B.1) | Passthrough para `nix eval` (read-only) |
+| `Flake [args…]` | — | `passthrough::flake` | READY (KCR-CLI-3-B Phase B.2) | Passthrough para `nix flake` (show/update/lock/etc) |
+| `PathInfo [args…]` | — | `passthrough::path_info` | READY (KCR-CLI-3-B Phase B.3) | Passthrough para `nix path-info` (read-only) |
+| `Hash [args…]` | — | `passthrough::hash` | READY (KCR-CLI-3-B Phase B.4) | Passthrough para `nix hash` (file/path/base32) |
+| `Store [args…]` | — | `passthrough::store` | READY (KCR-CLI-3-B Phase B.5) | Passthrough para `nix store`; `gc`/`delete` exigem `--confirm` |
 
 **Help behavior (KCR-CLI-3-HELP):** os 5 catch-alls da Phase A
 (`gc`, `home-manager`, `copy-closure`, `nix-env`, `nix-channel`) renderizam

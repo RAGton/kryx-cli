@@ -143,6 +143,42 @@ pub enum Commands {
     /// Repassa argumentos para `nix fmt` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
     Fmt { args: Vec<String> },
+    /// Phase B.1 — Avalia expressão Nix (`nix eval`). Read-only.
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Eval { args: Vec<String> },
+    /// Phase B.2 — Manage Nix flakes (`nix flake` show/update/lock/etc).
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Flake { args: Vec<String> },
+    /// Phase B.3 — Query info about store paths (`nix path-info`).
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    PathInfo { args: Vec<String> },
+    /// Phase B.4 — Compute cryptographic hashes (`nix hash` file/path/base32).
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Hash { args: Vec<String> },
+    /// Phase B.5 — Operate on the Nix store (`nix store` gc/optimise/repair).
+    /// `gc` and `delete` exigem `--confirm` (gate wired).
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Store { args: Vec<String> },
     /// Gera script de autocompletar para o shell especificado (zsh, bash, fish)
     Completion { shell: String },
     /// Proxy para o dominio KVE (`/api/v2/kve/*` no daemon kryxd)

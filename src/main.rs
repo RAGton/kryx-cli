@@ -273,6 +273,36 @@ fn main() {
                 exit(1);
             }
         }
+        Commands::Eval { args } => {
+            if let Err(e) = services::passthrough::eval(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Flake { args } => {
+            if let Err(e) = services::passthrough::flake(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::PathInfo { args } => {
+            if let Err(e) = services::passthrough::path_info(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Hash { args } => {
+            if let Err(e) = services::passthrough::hash(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Store { args } => {
+            if let Err(e) = services::passthrough::store(args) {
+                eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
         Commands::Completion { shell } => {
             use clap_complete::{Shell, generate};
             let shell_enum = match shell.as_str() {
