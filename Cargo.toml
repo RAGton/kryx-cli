@@ -1,6 +1,6 @@
 [package]
 name = "kryx"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
@@ -14,6 +14,8 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.0", features = ["process", "rt", "macros"] }
 libc = "0.2.189"
 cli-table = "0.4"
+indicatif = "0.17"
+once_cell = "1.19"
 
 [dev-dependencies]
 
