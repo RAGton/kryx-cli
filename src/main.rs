@@ -1,4 +1,5 @@
 mod cli;
+use colored::Colorize;
 use kryx::services;
 
 use clap::{CommandFactory, FromArgMatches};
@@ -42,6 +43,25 @@ fn main() {
             e.exit();
         }
     };
+
+    // Print the Kryonix banner at the top of every long-running command
+    // (switch/update/status/doctor/gc/clean). Other commands stay quiet
+    // so power users don't get banner fatigue. This is opt-out via
+    // KRYX_NO_BANNER=1 (e.g. for scripts that pipe kryx output).
+    let show_banner = std::env::var("KRYX_NO_BANNER").is_err()
+        && matches!(
+            &cli.command,
+            Commands::Switch { .. }
+                | Commands::Update { .. }
+                | Commands::Status
+                | Commands::Doctor { .. }
+                | Commands::Gc { .. }
+                | Commands::Clean { .. }
+                | Commands::System { .. }
+        );
+    if show_banner {
+        kryx::ui::print_banner();
+    }
 
     // Authorization Hook
     let authorized = match &cli.command {
@@ -202,9 +222,29 @@ fn main() {
             }
         }
         Commands::Clean { args } => {
-            if let Err(e) = services::passthrough::clean(args) {
-                eprintln!("Erro: {}", e);
-                exit(1);
+            // kryx clean runs the full cleanup pass (auto-gc 2d default +
+            // .hm-bak-* + result* + /tmp/kryx-*) by default. If args are
+            // passed, we forward them to nh clean as before.
+            if args.is_empty() {
+                kryx::ui::print_banner();
+                eprintln!(
+                    "{} Running full cleanup pass (gc 2d + .hm-bak + result + tmp)",
+                    "[INFO]".cyan()
+                );
+                let report =
+                    kryx::cleanup::run_full_cleanup(kryx::cleanup::DEFAULT_GC_KEEP, false, false);
+                eprintln!("{} Cleanup summary: {}", "[PASS]".green(), report.summary());
+                if !report.errors.is_empty() {
+                    for err in &report.errors {
+                        eprintln!("{} {}", "[WARN]".yellow(), err);
+                    }
+                    exit(1);
+                }
+            } else {
+                if let Err(e) = services::passthrough::clean(args) {
+                    eprintln!("Erro: {}", e);
+                    exit(1);
+                }
             }
         }
         Commands::Gc { args } => {
@@ -300,6 +340,69 @@ fn main() {
         Commands::Store { args } => {
             if let Err(e) = services::passthrough::store(args) {
                 eprintln!("Erro: {}", e);
+                exit(1);
+            }
+        }
+        Commands::Prefetch { args } => {
+            if let Err(e) = kryx::nix_extra::prefetch(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::Registry { args } => {
+            if let Err(e) = kryx::nix_extra::registry(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::Edit { args } => {
+            if let Err(e) = kryx::nix_extra::edit(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::SignPaths { args } => {
+            if let Err(e) = kryx::nix_extra::sign_paths(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::Copy { args } => {
+            if let Err(e) = kryx::nix_extra::copy(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::NixDoctor { args } => {
+            if let Err(e) = kryx::nix_extra::nix_doctor(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::NhCleanAll { args } => {
+            if let Err(e) = kryx::nix_extra::nh_clean_all(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::NixosRebuild { args } => {
+            if let Err(e) = kryx::nix_extra::nixos_rebuild(&args) {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        }
+        Commands::NhOs { args } => {
+            // args[0] must be a variant; rest are forwarded.
+            if args.is_empty() {
+                eprintln!(
+                    "kryx nhos: missing variant. Use: boot, test, dry-activate, dry-build, build"
+                );
+                exit(1);
+            }
+            let variant = args[0].clone();
+            let rest: Vec<String> = args.iter().skip(1).cloned().collect();
+            if let Err(e) = kryx::nix_extra::nh_os_variant(&variant, &rest) {
+                eprintln!("{}", e);
                 exit(1);
             }
         }

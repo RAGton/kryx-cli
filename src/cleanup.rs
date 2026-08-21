@@ -18,10 +18,10 @@
 // `kryx switch` leaves the system cleaner than it found it.
 
 use crate::ui;
+use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use colored::Colorize;
 
 /// Default GC retention window. 2 days matches the canonical NixOS
 /// recommendation for desktop/laptop users: short enough to free disk
@@ -155,17 +155,19 @@ pub fn run_auto_gc(older_than: &str, dry_run: bool) -> Result<u64, String> {
     // Discover the real nix-collect-garbage binary (cli-lockdown
     // installs a small wrapper that won't run as root, so we go
     // straight to the store-backed binary).
-    let ncg = crate::services::passthrough::discover_real_bin("nix-collect-garbage")
-        .ok_or_else(|| {
+    let ncg = crate::services::passthrough::discover_real_bin("nix-collect-garbage").ok_or_else(
+        || {
             "Could not locate a real nix-collect-garbage binary. \
              The Kryonix cli-lockdown may have removed it; \
              use the canonical path /run/current-system/sw/bin/nix-collect-garbage"
                 .to_string()
-        })?;
+        },
+    )?;
 
     let output = Command::new(&ncg)
         .arg("-d")
-        .arg(format!("--delete-older-than={}", older_than))
+        .arg("--delete-older-than")
+        .arg(older_than)
         .output()
         .map_err(|e| format!("failed to spawn nix-collect-garbage: {}", e))?;
 
@@ -230,8 +232,7 @@ pub fn remove_hm_backups(dry_run: bool) -> Result<u32, String> {
         return Ok(0);
     }
 
-    let entries = fs::read_dir(&home_path)
-        .map_err(|e| format!("cannot read HOME dir: {}", e))?;
+    let entries = fs::read_dir(&home_path).map_err(|e| format!("cannot read HOME dir: {}", e))?;
 
     let mut removed = 0u32;
     for entry in entries.flatten() {
@@ -243,7 +244,12 @@ pub fn remove_hm_backups(dry_run: bool) -> Result<u32, String> {
             if dry_run {
                 ui::info(&format!("DRY-RUN: would remove {}", path.display()));
             } else {
-                match fs::remove_dir_all(&path) {
+                let res = if path.is_dir() {
+                    fs::remove_dir_all(&path)
+                } else {
+                    fs::remove_file(&path)
+                };
+                match res {
                     Ok(()) => removed += 1,
                     Err(e) => ui::warn(&format!("failed to remove {}: {}", path.display(), e)),
                 }
@@ -262,10 +268,8 @@ pub fn remove_hm_backups(dry_run: bool) -> Result<u32, String> {
 /// and are technically GC roots; removing them lets the next gc free
 /// the underlying store paths.
 pub fn remove_result_symlinks(dry_run: bool) -> Result<u32, String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("cannot read CWD: {}", e))?;
-    let entries = fs::read_dir(&cwd)
-        .map_err(|e| format!("cannot read CWD: {}", e))?;
+    let cwd = std::env::current_dir().map_err(|e| format!("cannot read CWD: {}", e))?;
+    let entries = fs::read_dir(&cwd).map_err(|e| format!("cannot read CWD: {}", e))?;
 
     let mut removed = 0u32;
     for entry in entries.flatten() {
@@ -346,7 +350,7 @@ pub fn remove_kryx_tmpfiles(dry_run: bool) -> Result<u32, String> {
 /// Remove the `target/` build cache of the kryx-cli repo. Off by
 /// default; only triggered when KRYX_PRUNE_TARGET=1 is set. Useful
 /// for the cleanup command when developing on kryx-cli itself.
-pub fn prune_target_cache(workspace: &PathBuf, dry_run: bool) -> Result<u64, String> {
+pub fn prune_target_cache(workspace: &std::path::Path, dry_run: bool) -> Result<u64, String> {
     let target = workspace.join("target");
     if !target.is_dir() {
         return Ok(0);
@@ -360,7 +364,11 @@ pub fn prune_target_cache(workspace: &PathBuf, dry_run: bool) -> Result<u64, Str
         ));
         return Ok(size);
     }
-    ui::info(&format!("Pruning {} ({} bytes)", target.display(), human_bytes(size)));
+    ui::info(&format!(
+        "Pruning {} ({} bytes)",
+        target.display(),
+        human_bytes(size)
+    ));
     fs::remove_dir_all(&target).map_err(|e| format!("remove_dir_all: {}", e))?;
     Ok(size)
 }
@@ -369,7 +377,7 @@ pub fn prune_target_cache(workspace: &PathBuf, dry_run: bool) -> Result<u64, Str
 
 /// Walk a directory and return its total size in bytes. Used to print
 /// a human-readable "freed N MB" line for the target/ cache prune.
-fn dir_size(path: &PathBuf) -> std::io::Result<u64> {
+fn dir_size(path: &std::path::Path) -> std::io::Result<u64> {
     let mut total = 0u64;
     for entry in fs::read_dir(path)? {
         let entry = entry?;
@@ -416,7 +424,7 @@ mod tests {
     #[test]
     fn parse_bytes_freed_handles_garbage() {
         assert_eq!(parse_bytes_freed("nothing here"), 0);
-        assert_eq!(parse_bytes_freed("123.45 MiB freed"), 129446400);
+        assert_eq!(parse_bytes_freed("123.45 MiB freed"), 129446707);
         assert_eq!(parse_bytes_freed("  7.5 KiB freed  \n"), 7680);
     }
 

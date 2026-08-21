@@ -159,10 +159,28 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         .map_err(|e| format!("Falha ao invocar '{}': {}", nh_path, e))?;
 
     if status.success() {
-        println!(
+        eprintln!(
             "{} Switch do sistema concluído com sucesso!",
             "[PASS]".green()
         );
+        // Auto-gc + cleanup pass: opt-out via KRYX_NO_AUTO_GC=1.
+        if std::env::var("KRYX_NO_AUTO_GC").is_err() {
+            let report =
+                crate::cleanup::run_full_cleanup(crate::cleanup::DEFAULT_GC_KEEP, false, false);
+            let summary = report.summary();
+            if report.is_empty() {
+                eprintln!("{} no cleanup needed", "[INFO]".cyan());
+            } else {
+                eprintln!("{} Cleanup pass: {}", "[INFO]".cyan(), summary);
+            }
+            if !report.errors.is_empty() {
+                for err in &report.errors {
+                    eprintln!("{} {}", "[WARN]".yellow(), err);
+                }
+            }
+        } else {
+            eprintln!("{} Skipping auto-gc (KRYX_NO_AUTO_GC=1)", "[INFO]".cyan());
+        }
         Ok(())
     } else {
         Err(format!(

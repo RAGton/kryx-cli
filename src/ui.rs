@@ -164,10 +164,10 @@ impl Drop for KryxSpinner {
     /// Defensive: if the spinner is dropped without an explicit finish,
     /// finish it cleanly so we don't leave a stuck cursor.
     fn drop(&mut self) {
-        if let Some(pb) = self.pb.take() {
-            if !pb.is_finished() {
-                pb.finish_and_clear();
-            }
+        if let Some(pb) = self.pb.take()
+            && !pb.is_finished()
+        {
+            pb.finish_and_clear();
         }
     }
 }
@@ -196,12 +196,7 @@ pub fn divider() -> String {
 
 /// Render a section header with an underline divider.
 pub fn section_header(title: &str) -> String {
-    format!(
-        "{}\n{}{}",
-        title.bold().underline(),
-        divider().dimmed(),
-        ""
-    )
+    format!("{}\n{}{}", title.bold().underline(), divider().dimmed(), "")
 }
 
 #[cfg(test)]

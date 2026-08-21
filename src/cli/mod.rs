@@ -4,7 +4,7 @@ pub mod kve;
 pub mod think;
 
 #[derive(Parser)]
-#[command(name = "kryx", version = "0.1.0", author, about = "Kryonix Unified CLI", long_about = None)]
+#[command(name = "kryx", version, author, about = "Kryonix Unified CLI", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -179,6 +179,69 @@ pub enum Commands {
         disable_help_flag = true
     )]
     Store { args: Vec<String> },
+    /// KCR-CLI-V030 — Avalia expressão Nix (`nix-prefetch-url` / git)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Prefetch { args: Vec<String> },
+    /// KCR-CLI-V030 — Gerencia registry de flake inputs (`nix registry`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Registry { args: Vec<String> },
+    /// KCR-CLI-V030 — Abre fonte de flake no $EDITOR (`nix edit`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Edit { args: Vec<String> },
+    /// KCR-CLI-V030 — Assina store paths com trusted key (`nix sign-paths`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    SignPaths { args: Vec<String> },
+    /// KCR-CLI-V030 — Copia closures entre stores (`nix copy`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    Copy { args: Vec<String> },
+    /// KCR-CLI-V030 — Diagnostica config Nix upstream (`nix doctor`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    NixDoctor { args: Vec<String> },
+    /// KCR-CLI-V030 — Força cleanup completa (`nh clean all`)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    NhCleanAll { args: Vec<String> },
+    /// KCR-CLI-V030 — Escape hatch via nixos-rebuild (quando cli-lockdown quebra nh)
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    NixosRebuild { args: Vec<String> },
+    /// KCR-CLI-V030 — Variantes do switch: boot/test/dry-activate/dry-build/build
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
+    NhOs { args: Vec<String> },
     /// Gera script de autocompletar para o shell especificado (zsh, bash, fish)
     Completion { shell: String },
     /// Proxy para o dominio KVE (`/api/v2/kve/*` no daemon kryxd)
