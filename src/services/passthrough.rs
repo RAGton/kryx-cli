@@ -186,9 +186,98 @@ pub fn run_passthrough(
 // ---- nix pass-through wrappers ----
 
 pub fn shell(args: Vec<String>) -> Result<(), String> {
-    let mut argv = vec!["shell".to_string()];
-    argv.extend(args);
+    // KCR-CLI-3-SHELL: support both legacy (`-p git`) and modern
+    // (`nixpkgs#git`) muscle memory transparently.
+    //
+    // Routing: help detection runs FIRST (on the raw args) so
+    // `kryx shell --help` shows the kryx help hybrid instead of dumping
+    // the full nix shell help. Then we translate and passthrough.
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        return run_passthrough_with_help("nix", None, &args, "shell");
+    }
+    let argv = translate_shell_args(&args);
     run_passthrough(NIX_PATH, &argv, "shell")
+}
+
+/// Translate kryx shell args to the modern `nix shell` syntax.
+/// Exposed (pub) so tests can exercise the translation table.
+pub fn translate_shell_args(args: &[String]) -> Vec<String> {
+    if args.is_empty() {
+        return vec!["shell".to_string()];
+    }
+
+    let mut argv: Vec<String> = vec!["shell".to_string()];
+    let mut i = 0;
+
+    // Strategy: walk left-to-right.
+    //
+    // 1. When we see `-p`/`--packages`, the next arg(s) are package names;
+    //    rewrite each to `nixpkgs#<name>` (unless it already has `#` or `/`,
+    //    indicating a flake ref). Stop consuming on next flag.
+    //
+    // 2. Positional (no flag) args BEFORE any nix-shell control flag
+    //    (like `--command`, `--run`, `--`) are also package names — rewrite
+    //    them the same way. This handles `kryx shell git` (the legacy
+    //    `nix-shell git` muscle memory).
+    //
+    // 3. Once we hit a nix-shell control flag (anything that starts with `-`
+    //    OTHER than `-p`/`--packages`), passthrough the rest verbatim.
+    //
+    // 4. After a literal `--`, all remaining args are passthrough verbatim
+    //    (the standard nix convention for "end of nix options").
+    while i < args.len() {
+        let arg = &args[i];
+
+        // `--` ends nix option parsing; everything after is literal
+        // (typically the command to run inside the shell).
+        if arg == "--" {
+            argv.extend_from_slice(&args[i..]);
+            break;
+        }
+
+        if arg == "-p" || arg == "--packages" {
+            // KCR-CLI-3-SHELL: nix 2.18+ removed `-p`/`--packages` from
+            // `nix shell`. We strip the flag and rewrite the package
+            // names as positionals (the only form the modern CLI accepts).
+            i += 1;
+            while i < args.len() && !args[i].starts_with('-') {
+                argv.push(rewrite_pkg(&args[i]));
+                i += 1;
+            }
+        } else if !arg.starts_with('-') {
+            // Positional package name. Rewrite it.
+            argv.push(rewrite_pkg(arg));
+            i += 1;
+        } else {
+            // Some other nix-shell control flag (--command, --run, -i, etc.).
+            // Passthrough verbatim, then check if the NEXT arg is a value
+            // for this flag. We treat it as a value (passthrough, no
+            // package rewrite) unless it starts with `-` (i.e. it's
+            // another flag) or is the last arg.
+            argv.push(arg.clone());
+            i += 1;
+            // Heuristic: if next arg exists and doesn't start with `-`,
+            // it's likely the flag's value (e.g. `--command "echo hi"`).
+            // We passthrough it verbatim (no package rewrite). This is
+            // the standard nix convention.
+            if i < args.len() && !args[i].starts_with('-') {
+                argv.push(args[i].clone());
+                i += 1;
+            }
+        }
+    }
+
+    argv
+}
+
+/// Rewrite a single package name to `nixpkgs#<name>` unless it already
+/// looks like a flake ref (contains `#` or `/`).
+fn rewrite_pkg(pkg: &str) -> String {
+    if pkg.contains('#') || pkg.contains('/') {
+        pkg.to_string()
+    } else {
+        format!("nixpkgs#{}", pkg)
+    }
 }
 
 pub fn build(args: Vec<String>) -> Result<(), String> {
@@ -479,6 +568,7 @@ fn help_nix_channel() -> &'static KryxHelp {
 // `kryx <cmd> -- --help` para ver SÓ o help nativo.
 
 static KRYX_HELP_EVAL: OnceLock<KryxHelp> = OnceLock::new();
+static KRYX_HELP_SHELL: OnceLock<KryxHelp> = OnceLock::new();
 fn help_eval() -> &'static KryxHelp {
     KRYX_HELP_EVAL.get_or_init(|| {
         KryxHelp::new(
@@ -498,6 +588,30 @@ fn help_eval() -> &'static KryxHelp {
             "kryx eval --impure '.#nixosConfigurations.\"my-host\".config.networking.hostName'",
         )
         .note("Use `kryx eval -- --help` to show ONLY the native nix eval help.")
+    })
+}
+
+fn help_shell() -> &'static KryxHelp {
+    KRYX_HELP_SHELL.get_or_init(|| {
+        KryxHelp::new(
+            "shell",
+            "Run a command in an environment with the specified packages (nix shell)",
+        )
+        .option(
+            "--confirm, --yes, -y",
+            "Bypass destructive-operation gate (no-op for `shell`)",
+        )
+        .option("--dry-run", "Print the command, don't run")
+        .option("--verbose", "Log the command to stderr")
+        .option("--explain", "Show resolved binary + full argv, then exit")
+        .option("-p, --packages PKG", "(legacy) Packages to put in the shell environment; nix 2.18+ removed this flag, kryx strips it and converts each PKG to a positional `nixpkgs#<PKG>` installable")
+        .option("-c CMD", "Run CMD in the shell environment (nix 2.18+ replacement for --command)")
+        .example("kryx shell git -c git --version")
+        .example("kryx shell -p git hello -c bash")
+        .example("kryx shell nixpkgs#youtube-dl --command youtube-dl --version")
+        .note(
+            "KCR-CLI-3-SHELL: nix 2.18+ renamed `nix shell` (was `nix-shell`) and dropped the `-p`/`--packages` flag.              kryx transparently translates legacy `-p <pkg>` to modern positional `nixpkgs#<pkg>` installables.              Use `kryx shell -- --help` to show ONLY the native nix shell help.",
+        )
     })
 }
 
@@ -604,6 +718,7 @@ fn help_for_binary(binary_name: &str) -> Option<&'static KryxHelp> {
 fn help_for_nix_subcmd(subcmd: &str) -> Option<&'static KryxHelp> {
     match subcmd {
         "eval" => Some(help_eval()),
+        "shell" => Some(help_shell()),
         "flake" => Some(help_flake()),
         "path-info" => Some(help_path_info()),
         "hash" => Some(help_hash()),
@@ -700,26 +815,80 @@ fn run_passthrough_with_help(
         return run_passthrough(&resolved, args, subcommand_label);
     }
 
-    // 2. Help FIRST (antes do gate, antes da resolução de binary destrutivo)
-    if let Some(first) = args.first()
-        && (first == "--help" || first == "-h")
-    {
-        // Phase B: binary="nix" tem 5 helps distintos. Dispatch pelo subcmd.
+    // 2. Help FIRST (antes do gate, antes da resolução de binary destrutivo).
+    //    O clap parse já extraiu `--help` / `-h` se estiver em args[0].
+    //    Quando args.len() > 1 E o primeiro arg é `--help`/`-h`, isso
+    //    significa que o usuário digitou `kryx <cmd> --help <outras-coisas>`.
+    //    Convenção Unix: `--help` em qualquer posição sinaliza intenção de
+    //    pedir help. Mas se há outros args, o help híbrido do kryx é
+    //    enganador (parece que engoliu os args). Nesse caso, mostramos o
+    //    help NATIVO do binary subjacente com os args que o usuário passou,
+    //    precedido de um aviso curto. Isso preserva a transparência:
+    //    "se você queria rodar de verdade, remova o --help".
+    // Detect "show help" intent. Two cases:
+    //
+    // A) `kryx <cmd> --help`           → args == ["--help"] (catch-all
+    //                                      without subcmd prefix, e.g. shell)
+    // B) `kryx <cmd> <subcmd> --help`  → args == ["<subcmd>", "--help"]
+    //                                      (Phase B catch-alls that prefix
+    //                                      the subcmd, e.g. eval)
+    //
+    // In both cases, the user wants the kryx help hybrid. We extract
+    // the nix subcmd from subcommand_label (the source of truth) and
+    // look it up in help_for_nix_subcmd.
+    // Detect "show help" intent. Two cases:
+    //
+    // A) `kryx <cmd> --help`           → args == ["--help"] (catch-all
+    //                                      without subcmd prefix, e.g. shell)
+    // B) `kryx <cmd> <subcmd> --help`  → args == ["<subcmd>", "--help"]
+    //                                      (Phase B catch-alls that prefix
+    //                                      the subcmd, e.g. eval)
+    //
+    // We compare the args as &str slices to avoid moving the Strings.
+    let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
+    let is_help_request = matches!(
+        args_str.as_slice(),
+        ["--help"] | ["-h"] | [_, "--help"] | [_, "-h"]
+    );
+
+    if is_help_request {
         let help = if binary_name == "nix" {
-            let subcmd = args.first().map(String::as_str).unwrap_or("");
-            help_for_nix_subcmd(subcmd).ok_or_else(|| {
+            help_for_nix_subcmd(subcommand_label).ok_or_else(|| {
                 format!(
                     "no help defined for `kryx nix {}` — try `kryx nix {} -- --help` for native help",
-                    subcmd, subcmd
+                    subcommand_label, subcommand_label
                 )
             })?
         } else {
-            // Phase A: 1:1 entre binary e help.
             help_for_binary(binary_name)
                 .ok_or_else(|| format!("no help defined for binary: {}", binary_name))?
         };
         print!("{}", help_text(binary_name, help));
         std::process::exit(0);
+    }
+
+    if is_help_request && args.len() > 1 {
+        // `kryx <cmd> --help <outras-coisas>` —help + args.
+        // Mostra help nativo do binary subjacente com os args do usuário,
+        // precedido de aviso curto. Não consome os outros args silenciosamente.
+        eprintln!(
+            "{} `kryx {} --help` detectado com args adicionais.              Mostrando help nativo do {} subjacente com os args que você passou.              Se você queria rodar de verdade, remova o `--help`.",
+            "[INFO]".cyan(),
+            subcommand_label,
+            binary_name
+        );
+        // Resolve o binary e repassa com `--help` em qualquer posição.
+        let resolved = if let Some(bin) = discover_real_bin(binary_name) {
+            bin.to_string_lossy().into_owned()
+        } else if let Some(fallback) = binary_path_fallback {
+            fallback.to_string()
+        } else {
+            return Err(format!(
+                "Falha: binário '{}' não encontrado no PATH nem em /run/current-system/sw/bin.",
+                binary_name
+            ));
+        };
+        return run_passthrough(&resolved, args, subcommand_label);
     }
 
     // 3. GATE — destructive operations require explicit --confirm.
@@ -842,4 +1011,174 @@ pub fn store(args: Vec<String>) -> Result<(), String> {
     let mut argv = vec!["store".to_string()];
     argv.extend(args);
     run_passthrough_with_help("nix", None, &argv, "store")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn translate_shell_args_empty() {
+        let out = translate_shell_args(&[]);
+        assert_eq!(out, vec!["shell".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_legacy_single_pkg() {
+        // nix 2.18+ removed `-p`; kryx strips the flag and converts
+        // the package name to a positional `nixpkgs#<name>` installable.
+        let out = translate_shell_args(&["-p".to_string(), "git".to_string()]);
+        assert_eq!(out, vec!["shell".to_string(), "nixpkgs#git".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_legacy_long_flag() {
+        // Same: --packages is also stripped (nix 2.18+ compatibility).
+        let out = translate_shell_args(&["--packages".to_string(), "hello".to_string()]);
+        assert_eq!(out, vec!["shell".to_string(), "nixpkgs#hello".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_legacy_multiple_pkgs() {
+        // Multiple packages with `-p` all become positional installables.
+        let out = translate_shell_args(&["-p".to_string(), "git".to_string(), "hello".to_string()]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "nixpkgs#git".to_string(),
+                "nixpkgs#hello".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn translate_shell_args_modern_passthrough() {
+        let out = translate_shell_args(&["nixpkgs#git".to_string()]);
+        assert_eq!(out, vec!["shell".to_string(), "nixpkgs#git".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_flake_ref_passthrough() {
+        let out = translate_shell_args(&["github:foo/bar".to_string()]);
+        assert_eq!(out, vec!["shell".to_string(), "github:foo/bar".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_legacy_with_command() {
+        // Note: nix 2.18+ uses `-c` (not `--command`). This test
+        // preserves the user input verbatim — the user is expected to
+        // use the modern flag.
+        let out = translate_shell_args(&[
+            "-p".to_string(),
+            "git".to_string(),
+            "-c".to_string(),
+            "git --version".to_string(),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "nixpkgs#git".to_string(),
+                "-c".to_string(),
+                "git --version".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn translate_shell_args_no_pkg_flag_passthrough() {
+        // `kryx shell nixpkgs#git --run echo hi` → repassa com
+        // o package já qualificado (não toca em `#`)
+        let out = translate_shell_args(&[
+            "nixpkgs#git".to_string(),
+            "--run".to_string(),
+            "echo hi".to_string(),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "nixpkgs#git".to_string(),
+                "--run".to_string(),
+                "echo hi".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn translate_shell_args_positional_single_pkg() {
+        // KCR-CLI-3-SHELL user feedback (Gabriel, 2026-08-21):
+        // `kryx shell git` deve resolver para `nix shell nixpkgs#git`,
+        // nao `nix shell git` (que o nix 2.35+ rejeita como flake
+        // desconhecido "flake:git").
+        let out = translate_shell_args(&["git".to_string()]);
+        assert_eq!(out, vec!["shell".to_string(), "nixpkgs#git".to_string()]);
+    }
+
+    #[test]
+    fn translate_shell_args_positional_multiple_pkgs() {
+        let out = translate_shell_args(&["git".to_string(), "hello".to_string()]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "nixpkgs#git".to_string(),
+                "nixpkgs#hello".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn translate_shell_args_dashdash_terminator() {
+        // `--` termina o parsing de opcoes do nix; tudo depois passa verbatim
+        let out = translate_shell_args(&[
+            "git".to_string(),
+            "--".to_string(),
+            "bash".to_string(),
+            "-c".to_string(),
+            "echo hi".to_string(),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "nixpkgs#git".to_string(),
+                "--".to_string(),
+                "bash".to_string(),
+                "-c".to_string(),
+                "echo hi".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn translate_shell_args_dashdash_only() {
+        // Apenas `--` (sem pacotes antes) → repassa literal
+        let out = translate_shell_args(&[
+            "--".to_string(),
+            "bash".to_string(),
+            "-c".to_string(),
+            "echo hi".to_string(),
+        ]);
+        assert_eq!(
+            out,
+            vec![
+                "shell".to_string(),
+                "--".to_string(),
+                "bash".to_string(),
+                "-c".to_string(),
+                "echo hi".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn rewrite_pkg_qualified_passthrough() {
+        assert_eq!(rewrite_pkg("nixpkgs#git"), "nixpkgs#git");
+        assert_eq!(rewrite_pkg("github:foo/bar"), "github:foo/bar");
+        assert_eq!(rewrite_pkg("nixos-24.05#hello"), "nixos-24.05#hello");
+        assert_eq!(rewrite_pkg("git"), "nixpkgs#git");
+        assert_eq!(rewrite_pkg("hello"), "nixpkgs#hello");
+    }
 }

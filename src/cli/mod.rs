@@ -73,7 +73,14 @@ pub enum Commands {
     /// Inspeção de saúde (ZFS, KVE/Incus, Serviços, Telemetria)
     Status,
     /// Repassa argumentos para `nix shell` (wrapper transparente)
-    #[command(trailing_var_arg = true, allow_hyphen_values = true)]
+    // KCR-CLI-3-SHELL: disable_help_flag=true forces `--help` to fall
+    // through to the handler (kryx shell --help shows the kryx help
+    // hybrid; use `kryx shell -- --help` to get the native nix help).
+    #[command(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        disable_help_flag = true
+    )]
     Shell { args: Vec<String> },
     /// Repassa argumentos para `nh search` (wrapper transparente)
     #[command(trailing_var_arg = true, allow_hyphen_values = true)]
