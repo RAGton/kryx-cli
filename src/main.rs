@@ -97,8 +97,12 @@ fn main() {
                 exit(1);
             }
         }
-        Commands::Update { force_sync } => {
-            if let Err(e) = services::update::run_update(force_sync) {
+        Commands::Update {
+            force_sync,
+            no_stash,
+            cleanup_stash,
+        } => {
+            if let Err(e) = services::update::run_update(force_sync, no_stash, cleanup_stash) {
                 eprintln!("Erro Crítico: {}", e);
                 exit(1);
             }

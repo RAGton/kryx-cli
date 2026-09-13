@@ -66,9 +66,15 @@ pub enum Commands {
     },
     /// Atualiza repositórios Git (/etc/kryonix) e locks de flake
     Update {
-        /// Faz stash de alterações locais antes do pull (usar com cautela)
+        /// Faz stash de TODAS as alterações locais (incluindo flake.lock) antes do pull
         #[arg(long)]
         force_sync: bool,
+        /// Não faz stash; aborta se houver alterações locais que conflitem com o pull
+        #[arg(long, conflicts_with = "force_sync")]
+        no_stash: bool,
+        /// Limpa stashes automáticos deixados por execuções anteriores (marcados com `kryx-auto:`)
+        #[arg(long)]
+        cleanup_stash: bool,
     },
     /// Inspeção de saúde (ZFS, KVE/Incus, Serviços, Telemetria)
     Status,
