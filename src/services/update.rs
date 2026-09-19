@@ -8,6 +8,21 @@ use crate::services::modules;
 /// leaving any user-made stashes untouched. See `cleanup_auto_stashes`.
 const STASH_MARKER: &str = "kryx-auto:";
 
+/// Returns true if `repo_path` exists and is a valid git repository worktree.
+fn is_git_repo(repo_path: &str) -> bool {
+    let path = std::path::Path::new(repo_path);
+    if !path.exists() {
+        return false;
+    }
+    let output = Command::new("git")
+        .args(["-C", repo_path, "rev-parse", "--is-inside-work-tree"])
+        .output();
+    match output {
+        Ok(out) => out.status.success(),
+        Err(_) => false,
+    }
+}
+
 /// Returns true if `repo_path` has working-tree changes OUTSIDE of `flake.lock`.
 /// `flake.lock` is the file `kryx update` itself rewrites, so a dirty `flake.lock`
 /// after `nix flake update` is the expected steady state — counting it as "dirty"
@@ -15,6 +30,10 @@ const STASH_MARKER: &str = "kryx-auto:";
 /// "switch no-op" bug where Nix reused the cached store path because the
 /// working tree was dirty.
 fn has_changes_outside_lock(repo_path: &str) -> bool {
+    if !is_git_repo(repo_path) {
+        return false;
+    }
+
     // `git status --porcelain` lists every changed file, one per line. We strip
     // any line whose path resolves to a tracked `flake.lock` (handles both
     // ` M flake.lock` and `M  flake.lock` formats porcelain emits).
@@ -42,6 +61,10 @@ fn has_changes_outside_lock(repo_path: &str) -> bool {
 /// Drop every stash whose message starts with `kryx-auto:`. User-created
 /// stashes (no marker) are preserved. Returns the number of stashes removed.
 fn cleanup_auto_stashes(repo_path: &str) -> Result<usize, String> {
+    if !is_git_repo(repo_path) {
+        return Ok(0);
+    }
+
     let list_output = Command::new("git")
         .args(["-C", repo_path, "stash", "list"])
         .output()
@@ -106,6 +129,15 @@ fn git_pull_with_flags(
     force_sync: bool,
     no_stash: bool,
 ) -> Result<(), String> {
+    if !is_git_repo(repo_path) {
+        println!(
+            "{} {} não existe ou não é um repositório Git (pulando pull).",
+            "[INFO]".cyan(),
+            repo_path
+        );
+        return Ok(());
+    }
+
     let mut args = vec!["-C", repo_path, "pull", "origin", "main"];
 
     if force_sync {
@@ -251,47 +283,59 @@ pub fn run_update(force_sync: bool, no_stash: bool, cleanup_stash: bool) -> Resu
     println!("{} Sincronizando /etc/kryonixos...", "[INFO]".cyan());
     git_pull_with_flags("/etc/kryonixos", !force_sync, force_sync, no_stash)?;
 
-    // nix flake update --flake /etc/kryonixos
-    println!(
-        "{} Atualizando locks de flake em /etc/kryonixos...",
-        "[INFO]".cyan()
-    );
+    let target_flake = if std::path::Path::new("/etc/kryonixos/flake.nix").exists() {
+        Some("/etc/kryonixos")
+    } else if std::path::Path::new("/etc/kryonix/flake.nix").exists() {
+        Some("/etc/kryonix")
+    } else {
+        None
+    };
 
-    // Discover the real nix binary under /nix/store; the cli-lockdown module
-    // installs shell wrappers at /run/current-system/sw/bin/nix that mask
-    // `nix` as "[Kryonix Guard] bloqueado". Searching for the >1 MB binary
-    // and prepending its directory to PATH keeps `kryx update` working
-    // after lockdown is enabled. Mirrors the pattern in modules::run_switch.
-    let real_nix_dir = modules::discover_real_nix_dir().ok_or_else(|| {
-        "Could not locate a real nix binary in /nix/store. \
-         The Kryonix cli-lockdown may have removed it, which \
-         would break `kryx update`. Run the build outside of \
-         `kryx` using /run/current-system/sw/bin/nixos-rebuild."
-            .to_string()
-    })?;
-    println!("{} Real nix path: {}", "[INFO]".cyan(), real_nix_dir);
+    if let Some(flake_dir) = target_flake {
+        println!(
+            "{} Atualizando locks de flake em {}...",
+            "[INFO]".cyan(),
+            flake_dir
+        );
 
-    let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    let patched_path = format!("{}:{}", real_nix_dir, current_path);
+        let real_nix_dir = modules::discover_real_nix_dir().ok_or_else(|| {
+            "Could not locate a real nix binary in /nix/store. \
+             The Kryonix cli-lockdown may have removed it, which \
+             would break `kryx update`. Run the build outside of \
+             `kryx` using /run/current-system/sw/bin/nixos-rebuild."
+                .to_string()
+        })?;
+        println!("{} Real nix path: {}", "[INFO]".cyan(), real_nix_dir);
 
-    let mut nix_cmd = Command::new("nix");
-    nix_cmd
-        .args(["flake", "update", "--flake", "/etc/kryonixos"])
-        .env("PATH", patched_path)
-        .env("HOME", format!("/home/{}", sudo_user))
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_SYSTEM", "/dev/null")
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    let status_flake = nix_cmd
-        .status()
-        .map_err(|e| format!("Falha ao invocar nix flake update: {}", e))?;
+        let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let patched_path = format!("{}:{}", real_nix_dir, current_path);
 
-    if status_flake.success() {
+        let mut nix_cmd = Command::new("nix");
+        nix_cmd
+            .args(["flake", "update", "--flake", flake_dir])
+            .env("PATH", patched_path)
+            .env("HOME", format!("/home/{}", sudo_user))
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        let status_flake = nix_cmd
+            .status()
+            .map_err(|e| format!("Falha ao invocar nix flake update: {}", e))?;
+
+        if status_flake.success() {
+            println!("{} Atualização concluída com sucesso!", "[PASS]".green());
+            Ok(())
+        } else {
+            Err("Falha ao atualizar flake lock".to_string())
+        }
+    } else {
+        println!(
+            "{} Nenhum flake.nix encontrado em /etc/kryonixos ou /etc/kryonix (pulando nix flake update).",
+            "[WARN]".yellow()
+        );
         println!("{} Atualização concluída com sucesso!", "[PASS]".green());
         Ok(())
-    } else {
-        Err("Falha ao atualizar flake lock".to_string())
     }
 }

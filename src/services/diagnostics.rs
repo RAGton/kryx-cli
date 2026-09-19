@@ -223,6 +223,23 @@ fn check_git(checks: &mut Vec<CheckResult>) {
             continue;
         }
 
+        let is_repo = Command::new("git")
+            .args(["-C", repo, "rev-parse", "--is-inside-work-tree"])
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false);
+
+        if !is_repo {
+            push(
+                checks,
+                "git",
+                repo,
+                CheckStatus::Warn,
+                "não é um repositório git".to_string(),
+            );
+            continue;
+        }
+
         let args = [
             "-c",
             &format!("safe.directory={repo}"),
