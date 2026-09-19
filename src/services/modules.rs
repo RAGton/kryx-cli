@@ -34,6 +34,26 @@ pub fn discover_real_nix_dir() -> Option<String> {
     })
 }
 
+pub fn discover_flake_dir(sudo_user: &str) -> String {
+    if let Ok(env_flake) = std::env::var("NH_FLAKE").or_else(|_| std::env::var("NH_OS_FLAKE")) {
+        if !env_flake.is_empty() {
+            return env_flake;
+        }
+    }
+    let candidates = [
+        "/etc/kryonixos".to_string(),
+        "/etc/kryonix".to_string(),
+        format!("/home/{}/kryonixos", sudo_user),
+        format!("/home/{}/kryonix", sudo_user),
+    ];
+    for candidate in &candidates {
+        if std::path::Path::new(candidate).join("flake.nix").exists() {
+            return candidate.clone();
+        }
+    }
+    "/etc/kryonixos".to_string()
+}
+
 pub fn run_switch(target: Option<String>) -> Result<(), String> {
     println!(
         "{} Iniciando operação atômica de switch...",
@@ -65,6 +85,12 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         return run_home_switch(None);
     }
 
+    let sudo_user = std::env::var("SUDO_USER")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "garton".to_string());
+
+    let flake_dir = discover_flake_dir(&sudo_user);
+
     // 2. Identify the target hostname
     let hostname = target.unwrap_or_else(|| {
         std::fs::read_to_string("/etc/hostname")
@@ -74,8 +100,9 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     });
 
     println!(
-        "{} Flake target: /etc/kryonixos#{}",
+        "{} Flake target: {}#{}",
         "[INFO]".cyan(),
+        flake_dir,
         hostname
     );
 
@@ -104,16 +131,6 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     let current_path = std::env::var("PATH").unwrap_or_default();
     let patched_path = format!("{}:{}", real_nix_dir, current_path);
 
-    // kryx NEVER uses sudo internally. When invoked via sudo, we
-    // re-drop privileges to the original user using `setpriv` (a
-    // native Linux capability, not sudo). nh 4.x refuses to run as
-    // root, so we re-drop BEFORE calling nh. After evaluation, nh
-    // re-escalates via --elevation-strategy ONLY for steps that need
-    // root (bootloader install).
-    let sudo_user = std::env::var("SUDO_USER")
-        .or_else(|_| std::env::var("USER"))
-        .unwrap_or_else(|_| "garton".to_string());
-
     // Resolve UID/GID for setpriv
     let user_id: u32 = std::fs::read_to_string("/etc/passwd")
         .ok()
@@ -138,7 +155,7 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
             .arg("switch")
             .arg("--elevation-strategy")
             .arg("/run/wrappers/bin/sudo")
-            .arg(format!("/etc/kryonixos#{}", hostname));
+            .arg(format!("{}#{}", flake_dir, hostname));
         c
     } else {
         let mut c = Command::new(nh_path);
@@ -146,7 +163,7 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
             .arg("switch")
             .arg("--elevation-strategy")
             .arg("/run/wrappers/bin/sudo")
-            .arg(format!("/etc/kryonixos#{}", hostname));
+            .arg(format!("{}#{}", flake_dir, hostname));
         c
     };
 
@@ -207,6 +224,8 @@ pub fn run_home_switch(target: Option<String>) -> Result<(), String> {
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_else(|_| "garton".to_string());
 
+    let flake_dir = discover_flake_dir(&sudo_user);
+
     let hostname = std::fs::read_to_string("/etc/hostname")
         .unwrap_or_else(|_| "inspiron".to_string())
         .trim()
@@ -215,8 +234,9 @@ pub fn run_home_switch(target: Option<String>) -> Result<(), String> {
     let target_cfg = target.unwrap_or_else(|| format!("{}@{}", sudo_user, hostname));
 
     println!(
-        "{} Target Home Manager: /etc/kryonixos#{}",
+        "{} Target Home Manager: {}#{}",
         "[INFO]".cyan(),
+        flake_dir,
         target_cfg
     );
 
@@ -234,7 +254,7 @@ pub fn run_home_switch(target: Option<String>) -> Result<(), String> {
     let mut cmd = Command::new(nh_path);
     cmd.arg("home")
         .arg("switch")
-        .arg(format!("/etc/kryonixos#{}", target_cfg));
+        .arg(format!("{}#{}", flake_dir, target_cfg));
 
     cmd.env("PATH", patched_path)
         .env("HOME", format!("/home/{}", sudo_user))
