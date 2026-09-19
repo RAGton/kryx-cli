@@ -65,7 +65,12 @@ fn main() {
 
     // Authorization Hook
     let authorized = match &cli.command {
-        Commands::Identity { .. } | Commands::Setup | Commands::Check { .. } => true,
+        Commands::Identity { .. }
+        | Commands::Setup
+        | Commands::Check { .. }
+        | Commands::Switch { .. }
+        | Commands::HomeManager { .. }
+        | Commands::Status => true,
         Commands::Deploy { .. } | Commands::Node { .. } | Commands::Feature { .. } => is_core,
         _ => is_core || is_desktop,
     };

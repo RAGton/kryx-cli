@@ -60,6 +60,11 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         ));
     }
 
+    // Se o target for "home", o usuário quer aplicar o Home Manager
+    if target.as_deref() == Some("home") {
+        return run_home_switch(None);
+    }
+
     // 2. Identify the target hostname
     let hostname = target.unwrap_or_else(|| {
         std::fs::read_to_string("/etc/hostname")
@@ -105,7 +110,9 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
     // root, so we re-drop BEFORE calling nh. After evaluation, nh
     // re-escalates via --elevation-strategy ONLY for steps that need
     // root (bootloader install).
-    let sudo_user = std::env::var("SUDO_USER").unwrap_or_else(|_| "rocha".to_string());
+    let sudo_user = std::env::var("SUDO_USER")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "garton".to_string());
 
     // Resolve UID/GID for setpriv
     let user_id: u32 = std::fs::read_to_string("/etc/passwd")
@@ -189,3 +196,69 @@ pub fn run_switch(target: Option<String>) -> Result<(), String> {
         ))
     }
 }
+
+pub fn run_home_switch(target: Option<String>) -> Result<(), String> {
+    println!(
+        "{} Iniciando operação atômica de switch do Home Manager...",
+        "[INFO]".cyan()
+    );
+
+    let sudo_user = std::env::var("SUDO_USER")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "garton".to_string());
+
+    let hostname = std::fs::read_to_string("/etc/hostname")
+        .unwrap_or_else(|_| "inspiron".to_string())
+        .trim()
+        .to_string();
+
+    let target_cfg = target.unwrap_or_else(|| format!("{}@{}", sudo_user, hostname));
+
+    println!(
+        "{} Target Home Manager: /etc/kryonixos#{}",
+        "[INFO]".cyan(),
+        target_cfg
+    );
+
+    let real_nix_dir = match discover_real_nix_dir() {
+        Some(d) => d,
+        None => {
+            return Err("Could not locate a real nix binary in /nix/store.".to_string());
+        }
+    };
+
+    let nh_path = "/run/current-system/sw/bin/nh";
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let patched_path = format!("{}:{}", real_nix_dir, current_path);
+
+    let mut cmd = Command::new(nh_path);
+    cmd.arg("home")
+        .arg("switch")
+        .arg(format!("/etc/kryonixos#{}", target_cfg));
+
+    cmd.env("PATH", patched_path)
+        .env("HOME", format!("/home/{}", sudo_user))
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    let status = cmd
+        .status()
+        .map_err(|e| format!("Falha ao invocar '{}': {}", nh_path, e))?;
+
+    if status.success() {
+        println!(
+            "{} Switch do Home Manager concluído com sucesso!",
+            "[PASS]".green()
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "nh home switch abortado ou falhou com status: {}",
+            status
+        ))
+    }
+}
+
