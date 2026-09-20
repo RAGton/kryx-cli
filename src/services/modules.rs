@@ -35,10 +35,12 @@ pub fn discover_real_nix_dir() -> Option<String> {
 }
 
 pub fn discover_flake_dir(sudo_user: &str) -> String {
-    if let Ok(env_flake) = std::env::var("NH_FLAKE").or_else(|_| std::env::var("NH_OS_FLAKE")) {
-        if !env_flake.is_empty() {
-            return env_flake;
-        }
+    if let Some(env_flake) = std::env::var("NH_FLAKE")
+        .or_else(|_| std::env::var("NH_OS_FLAKE"))
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
+        return env_flake;
     }
     let candidates = [
         "/etc/kryonixos".to_string(),
@@ -281,4 +283,3 @@ pub fn run_home_switch(target: Option<String>) -> Result<(), String> {
         ))
     }
 }
-

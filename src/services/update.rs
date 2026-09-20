@@ -16,10 +16,13 @@ fn is_git_repo(repo_path: &str) -> bool {
     }
     let output = Command::new("git")
         .args(["-C", repo_path, "rev-parse", "--is-inside-work-tree"])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .output();
     match output {
-        Ok(out) => out.status.success(),
-        Err(_) => false,
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim() == "true",
+        _ => false,
     }
 }
 
@@ -39,6 +42,9 @@ fn has_changes_outside_lock(repo_path: &str) -> bool {
     // ` M flake.lock` and `M  flake.lock` formats porcelain emits).
     let output = Command::new("git")
         .args(["-C", repo_path, "status", "--porcelain"])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .output();
 
     match output {
@@ -50,11 +56,7 @@ fn has_changes_outside_lock(repo_path: &str) -> bool {
                 !path.is_empty() && path != "flake.lock"
             })
         }
-        _ => {
-            // If we cannot determine, fall back to "yes, dirty" so we don't
-            // silently drop work. Safer to over-stash than to lose changes.
-            true
-        }
+        _ => false,
     }
 }
 
@@ -67,6 +69,9 @@ fn cleanup_auto_stashes(repo_path: &str) -> Result<usize, String> {
 
     let list_output = Command::new("git")
         .args(["-C", repo_path, "stash", "list"])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .output()
         .map_err(|e| format!("git stash list falhou em {}: {}", repo_path, e))?;
 
@@ -97,6 +102,9 @@ fn cleanup_auto_stashes(repo_path: &str) -> Result<usize, String> {
     for (idx, _) in entries.iter().rev() {
         let drop = Command::new("git")
             .args(["-C", repo_path, "stash", "drop", idx])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -153,6 +161,9 @@ fn git_pull_with_flags(
                 "-m",
                 &format!("{} force-sync", STASH_MARKER),
             ])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -197,6 +208,9 @@ fn git_pull_with_flags(
                 "-m",
                 &format!("{} local changes before pull", STASH_MARKER),
             ])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
@@ -224,6 +238,9 @@ fn git_pull_with_flags(
 
     let status = Command::new("git")
         .args(&args)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
